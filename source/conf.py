@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.abspath(".."))
 
 
 # fmt: off
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 # fmt: on
 
 # -- Project information -----------------------------------------------------
@@ -26,7 +26,7 @@ autodoc_mock_imports = ["pymysql"]  # 模拟导入，避免报错
 
 extensions = [
     "sphinx.ext.autodoc",
-    "sphinx.ext.viewcode",
+    # "sphinx.ext.viewcode",
     # 支持 Google/NumPy 风格的文档字符串
     "sphinx.ext.napoleon",
     # myst 解析器
@@ -51,7 +51,7 @@ source_encoding = 'utf-8-sig'
 # The master toctree document.
 master_doc = "index"
 
-language = 'zh_CN'
+# language = 'zh_CN'
 
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
