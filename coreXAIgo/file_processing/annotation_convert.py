@@ -1,3 +1,4 @@
+
 import json
 import os
 import cv2
@@ -117,6 +118,7 @@ class YOLOAnnotation:
                 - 边界框格式: "class_id center_x center_y width height"
                 - 分割多边形格式: "class_id x1 y1 x2 y2 ... xn yn"
                 所有坐标值保留6位小数精度
+        
 
         Example:
             >>> # 包含边界框和分割标注的示例
@@ -1055,3 +1057,4 @@ class AnnotationConverter:
 
         self.logger.info(f"创建空YOLO标签: {txt_path}")
         return txt_path
+
