@@ -22,7 +22,7 @@ version = __version__
 release = __version__
 
 # -- General configuration ---------------------------------------------
-autodoc_mock_imports = ["pymysql","torch","cv2"]  # 模拟导入，避免报错
+autodoc_mock_imports = ["pymysql","torch","cv2","numpy"]  # 模拟导入，避免报错
 
 extensions = [
     "sphinx.ext.autodoc",
