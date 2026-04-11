@@ -6,7 +6,7 @@
 - FTP客户端（ftp_client）：FTP文件传输
 - SFTP客户端（sftp_client）：SFTP文件传输
 - 数据库客户端（mt_db_client）：数据库操作
-- 文件下载器（mt_file_downloader）：批量FTP/SFTP下载
+- 文件下载器（mt_file_transfer）：批量FTP/SFTP下载
 - 常量定义（constants）：通用常量
 
 Copyright (C) 2025 Xxin_BOE
@@ -52,13 +52,15 @@ mt_db_client_all = [
     'MtDBClient'
 ]
 
-mt_file_downloader_all = [
-    'MtFileDownloader'
+mt_file_transfer_all = [
+    'MtFileDownloader',
+    'MtFileUploader',
+    'MtFileServerCopier'
 ]
 
 sftp_client_all = [
     'SFTPClient'
 ]
 
-__all__ = basic_all + bbox_util_all + ftp_client_all + mt_db_client_all + mt_file_downloader_all + sftp_client_all
+__all__ = basic_all + bbox_util_all + ftp_client_all + mt_db_client_all + mt_file_transfer_all + sftp_client_all
 

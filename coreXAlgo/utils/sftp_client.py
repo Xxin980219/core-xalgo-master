@@ -1391,6 +1391,261 @@ class SFTPClient:
         result = self._safe_sftp_op(operation, sftp_name)
         return result if result is not None else False
 
+    def copy_file_on_server(self, sftp_name: str, source_path: str, destination: str,
+                            overwrite: bool = False) -> Tuple[str, str]:
+        """
+        在SFTP服务器端拷贝文件
+
+        支持将文件从目录A拷贝至目录B，支持单个文件或批量文件拷贝。
+
+        Args:
+            sftp_name (str): SFTP配置名称
+            source_path (str): 源文件路径（服务器端绝对路径）
+            destination (str): 目标路径（服务器端目录或文件路径）
+            overwrite (bool, optional): 是否覆盖已存在的目标文件，默认为False
+
+        Returns:
+            Tuple[str, str]: (目标路径, 状态) 状态可以是 "copied"(已拷贝), "skipped"(已跳过)
+
+        Raises:
+            FileNotFoundError: 源文件不存在
+            ValueError: 源路径不是文件
+            PermissionError: 无权限访问或写入
+
+        Example:
+            >>> # 基本拷贝
+            >>> target, status = client.copy_file_on_server("server1", "/remote/dirA/file.txt", "/remote/dirB/")
+            >>> print(f"结果: {target}, 状态: {status}")
+            >>>
+            >>> # 覆盖已存在的文件
+            >>> target, status = client.copy_file_on_server("server1", "/remote/dirA/file.txt", "/remote/dirB/", overwrite=True)
+        """
+        sftp = self._get_connection(sftp_name)
+        if not sftp:
+            raise ConnectionError(f"无法连接到SFTP服务器: {sftp_name}")
+
+        # 检查源文件是否存在
+        try:
+            source_stat = sftp.stat(source_path)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"源文件不存在: {source_path}")
+
+        # 检查源路径是否为文件
+        if not (source_stat.st_mode & 0o100000):  # S_IFREG
+            raise ValueError(f"源路径不是文件: {source_path}")
+
+        # 确定目标路径
+        try:
+            dest_stat = sftp.stat(destination)
+            # destination 存在且是目录
+            if dest_stat.st_mode & 0o040000:  # S_IFDIR
+                target_dir = destination.rstrip('/')
+                filename = os.path.basename(source_path)
+                target_path = f"{target_dir}/{filename}"
+            else:
+                # destination 存在且是文件
+                target_path = destination
+        except FileNotFoundError:
+            # destination 不存在，判断应该是目录还是文件
+            if destination.endswith('/'):
+                # 以/结尾，视为目录
+                target_dir = destination.rstrip('/')
+                filename = os.path.basename(source_path)
+                target_path = f"{target_dir}/{filename}"
+            else:
+                # 检查是否有文件扩展名
+                dest_name = os.path.basename(destination)
+                if '.' in dest_name:
+                    # 有扩展名，视为文件路径
+                    target_path = destination
+                    target_dir = os.path.dirname(destination)
+                else:
+                    # 无扩展名，视为目录
+                    target_dir = destination
+                    filename = os.path.basename(source_path)
+                    target_path = f"{target_dir}/{filename}"
+
+        # 标准化路径
+        source_path = source_path.replace('\\', '/')
+        target_path = target_path.replace('\\', '/')
+        target_dir = target_dir.replace('\\', '/') if target_dir else ""
+
+        original_target_path = target_path
+
+        # 检查目标文件是否已存在
+        try:
+            sftp.stat(target_path)
+            # 文件已存在
+            if overwrite:
+                # 如果允许覆盖，先尝试删除已存在的文件
+                try:
+                    sftp.remove(target_path)
+                    self.logger.debug(f"已删除已存在的目标文件: {target_path}")
+                except Exception as e:
+                    raise PermissionError(f"无法删除已存在的目标文件 {target_path}: {e}")
+            else:
+                # 不允许覆盖，跳过并记录日志
+                self.logger.info(f"跳过，文件已存在: {target_path}")
+                return target_path, "skipped"
+        except FileNotFoundError:
+            # 文件不存在，可以继续
+            pass
+
+        # 创建目标目录（如果不存在）
+        if target_dir:
+            try:
+                sftp.stat(target_dir)
+            except FileNotFoundError:
+                # 递归创建目录
+                parts = target_dir.strip('/').split('/')
+                current_path = ''
+                for part in parts:
+                    if part:
+                        current_path = f"{current_path}/{part}" if current_path else f"/{part}"
+                        try:
+                            sftp.stat(current_path)
+                        except FileNotFoundError:
+                            sftp.mkdir(current_path)
+                self.logger.debug(f"已创建/确认目标目录: {target_dir}")
+
+        # 执行服务器端拷贝
+        try:
+            # 使用SSH的exec_command执行cp命令实现服务器端直接拷贝
+            # 这比先下载到内存再上传更高效
+            transport = sftp.get_channel().get_transport()
+            ssh = paramiko.SSHClient()
+            ssh._transport = transport
+
+            # 构建cp命令
+            cp_cmd = f"cp '{source_path}' '{target_path}'"
+            self.logger.debug(f"执行服务器端拷贝命令: {cp_cmd}")
+
+            stdin, stdout, stderr = ssh.exec_command(cp_cmd)
+            exit_code = stdout.channel.recv_exit_status()
+
+            if exit_code != 0:
+                error_msg = stderr.read().decode('utf-8').strip()
+                raise RuntimeError(f"服务器端拷贝失败 (exit code: {exit_code}): {error_msg}")
+
+            self.logger.debug(f"成功拷贝: {source_path} -> {target_path}")
+
+            # 验证拷贝是否成功
+            try:
+                target_stat = sftp.stat(target_path)
+                target_size = target_stat.st_size
+
+                if source_stat.st_size != target_size:
+                    self.logger.warning(f"警告: 源文件大小({source_stat.st_size}字节)和目标文件大小({target_size}字节)不一致")
+                else:
+                    self.logger.debug(f"文件大小验证成功: {target_size}字节")
+
+                return target_path, "copied"
+
+            except FileNotFoundError:
+                raise RuntimeError(f"拷贝后目标文件不存在: {target_path}")
+
+        except PermissionError as e:
+            self.logger.error(f"权限错误: 无法访问 {source_path} 或写入 {target_path}")
+            raise
+        except Exception as e:
+            self.logger.error(f"未知错误: 拷贝 {source_path} -> {target_path}, 错误: {e}")
+            raise
+
+    def copy_files_on_server(self, sftp_name: str, source_paths: List[str], destination_dir: str,
+                             overwrite: bool = False,
+                             progress_callback: Optional[Callable[[int, int, str], None]] = None,
+                             show_progress: bool = True) -> Tuple[int, int, List[str]]:
+        """
+        在SFTP服务器端批量拷贝多个文件
+
+        Args:
+            sftp_name (str): SFTP配置名称
+            source_paths (List[str]): 源文件路径列表（服务器端绝对路径）
+            destination_dir (str): 目标目录路径（服务器端）
+            overwrite (bool, optional): 是否覆盖已存在的目标文件，默认为False
+            progress_callback (Optional[Callable[[int, int, str], None]], optional): 进度回调函数
+                - 参数1: 当前文件索引
+                - 参数2: 总文件数
+                - 参数3: 当前文件名或状态信息
+            show_progress (bool, optional): 是否显示tqdm进度条，默认为True
+
+        Returns:
+            Tuple[int, int, List[str]]: (成功拷贝数量, 总文件数量, 目标路径列表)
+
+        Example:
+            >>> success, total, targets = client.copy_files_on_server(
+            ...     "server1",
+            ...     ["/remote/dirA/file1.txt", "/remote/dirA/file2.txt"],
+            ...     "/remote/dirB/",
+            ...     overwrite=True,
+            ...     show_progress=True
+            ... )
+            >>> print(f"拷贝完成: {success}/{total}")
+        """
+        total_files = len(source_paths)
+        copied_count = 0  # 成功拷贝数量
+        skipped_count = 0  # 跳过（已存在）数量
+        failed_files = []
+        target_paths = []
+
+        # 创建tqdm进度条
+        pbar = None
+        if show_progress:
+            pbar = tqdm(total=total_files, desc="服务器端拷贝", unit="文件")
+
+        for idx, source_path in enumerate(source_paths, 1):
+            filename = os.path.basename(source_path)
+
+            if progress_callback:
+                progress_callback(idx, total_files, f"开始拷贝: {filename}")
+
+            try:
+                target_path, status = self.copy_file_on_server(
+                    sftp_name=sftp_name,
+                    source_path=source_path,
+                    destination=destination_dir,
+                    overwrite=overwrite
+                )
+                target_paths.append(target_path)
+
+                if status == "copied":
+                    copied_count += 1
+                    if progress_callback:
+                        progress_callback(idx, total_files, f"✅ 已拷贝: {filename}")
+                elif status == "skipped":
+                    skipped_count += 1
+                    if progress_callback:
+                        progress_callback(idx, total_files, f"⏭️ 已跳过: {filename}")
+
+            except Exception as e:
+                self.logger.error(f"拷贝文件失败 {source_path}: {e}")
+                failed_files.append(source_path)
+                target_paths.append(None)
+
+                if progress_callback:
+                    progress_callback(idx, total_files, f"❌ 失败: {filename}")
+
+            # 更新进度条
+            if pbar:
+                pbar.update(1)
+                pbar.set_postfix({"已拷贝": copied_count, "已跳过": skipped_count, "失败": len(failed_files)})
+
+        # 关闭进度条
+        if pbar:
+            pbar.close()
+
+        # 输出统计信息
+        self.logger.info(f"服务器端拷贝完成: 已拷贝={copied_count}, 已跳过={skipped_count}, 失败={len(failed_files)}, 总计={total_files}")
+
+        if failed_files:
+            self.logger.warning(f"拷贝失败文件: {len(failed_files)} 个")
+            for path in failed_files:
+                self.logger.warning(f"  - {path}")
+
+        # 返回成功拷贝数量（包含已跳过的，因为它们都已存在于目标位置）
+        success_count = copied_count + skipped_count
+        return success_count, total_files, target_paths
+
     def __enter__(self):
         """
         上下文管理器入口

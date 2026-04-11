@@ -1136,23 +1136,31 @@ class DetectionVisualizer:
             # 检查各个位置是否合适
             positions = []
 
-            # 1. 顶部（如果空间足够）
+            # 1. 左上角（如果空间足够）
+            if top_space > margin * 2 and left_space > margin * 2:
+                positions.append(('top_left', x1, y1 - margin))
+
+            # 2. 左下角（如果空间足够）
+            if bottom_space > margin * 2 and left_space > margin * 2:
+                positions.append(('bottom_left', x1, y2 + margin))
+
+            # 3. 顶部（如果空间足够）
             if top_space > margin * 2:
                 positions.append(('top', center_x, y1 - margin))
 
-            # 2. 底部（如果空间足够）
+            # 4. 底部（如果空间足够）
             if bottom_space > margin * 2:
                 positions.append(('bottom', center_x, y2 + margin))
 
-            # 3. 左侧（如果空间足够）
+            # 5. 左侧（如果空间足够）
             if left_space > margin * 2:
                 positions.append(('left', x1 - margin, center_y))
 
-            # 4. 右侧（如果空间足够）
+            # 6. 右侧（如果空间足够）
             if right_space > margin * 2:
                 positions.append(('right', x2 + margin, center_y))
 
-            # 5. 中心（如果形状足够大）
+            # 7. 中心（如果形状足够大）
             shape_width = x2 - x1
             shape_height = y2 - y1
             if shape_width > 50 and shape_height > 30:
@@ -1207,9 +1215,23 @@ class DetectionVisualizer:
             else:
                 # 中心点在外，寻找最近的边界位置
                 margin = 20
-                if min_y > margin:
+                left_space = min_x
+                top_space = min_y
+                bottom_space = h - max_y
+                
+                # 优先使用左上角
+                if top_space > margin * 2 and left_space > margin * 2:
+                    label_x, label_y = min_x, min_y - margin
+                    text_anchor = 'bottom'
+                # 其次使用左下角
+                elif bottom_space > margin * 2 and left_space > margin * 2:
+                    label_x, label_y = min_x, max_y + margin
+                    text_anchor = 'top'
+                # 再次使用顶部
+                elif top_space > margin:
                     label_x, label_y = center_x, min_y - margin
                     text_anchor = 'bottom'
+                # 再次使用底部
                 elif max_y < h - margin:
                     label_x, label_y = center_x, max_y + margin
                     text_anchor = 'top'
@@ -1229,10 +1251,12 @@ class DetectionVisualizer:
 
         # 基础分数（位置类型优先级）
         base_scores = {
-            'top': 1.0,
-            'bottom': 1.2,
-            'right': 1.4,
-            'left': 1.6,
+            'top_left': 0.8,  # 优先使用左上角
+            'bottom_left': 1.0,  # 其次使用左下角
+            'top': 1.2,
+            'bottom': 1.4,
+            'right': 1.6,
+            'left': 1.8,
             'center': 2.0
         }
 
@@ -1250,6 +1274,8 @@ class DetectionVisualizer:
     def _get_text_anchor_for_position(self, position: str) -> str:
         """根据位置获取文本锚点"""
         anchor_map = {
+            'top_left': 'bottom',
+            'bottom_left': 'top',
             'top': 'bottom',
             'bottom': 'top',
             'left': 'right',

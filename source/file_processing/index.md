@@ -68,7 +68,7 @@
 - **图像裁剪**：基于标注的智能裁剪
 - **数据预处理**：YOLO 数据集旋转、增强
 - **压缩管理**：支持多种压缩格式
-- **XML处理**：VOC 标注文件批量处理
+- **标注文件处理**：VOC XML 和 YOLO TXT 批量处理
 
 ## 📁 组件列表
 
@@ -106,14 +106,14 @@
 基于 VOC 标注格式的智能图像裁剪，支持保留/丢弃无缺陷区域，分开保存 OK/NG 图像。
 :::
 
-:::{grid-item-card} {octicon}`archive` Voc_xml_deal
-:link: voc_xml_deal
+:::{grid-item-card} {octicon}`archive` Annotation_processor
+:link: annotation_processor
 :link-type: doc
 :class-card: component-card
 
-**VOC XML 处理器**
+**标注文件处理器**
 
-批量处理 VOC XML 标注文件，支持类别更新、统计分析、按类别提取图片等功能。
+批量处理 VOC XML 和 YOLO TXT 标注文件，支持类别更新、统计分析、按类别提取图片等功能。
 :::
 
 :::{grid-item-card} {octicon}`database` Data_preprocessing
@@ -178,7 +178,7 @@ converter.voc_to_yolo_obj('voc/001.xml', 'yolo_labels/001.txt')
 basic
 annotation_convert
 image_crop
-voc_xml_deal
+annotation_processor
 data_preprocessing
 archive
 ```

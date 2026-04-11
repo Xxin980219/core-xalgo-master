@@ -514,6 +514,25 @@ class VOCAnnotation:
 
         # 添加已有对象
         for obj in self.objects:
+            # 防止边界框越界
+            xmin, ymin, xmax, ymax = obj.bbox
+            
+            # 确保坐标在有效范围内
+            xmin = max(1, min(xmin, self.image_width))
+            ymin = max(1, min(ymin, self.image_height))
+            xmax = max(1, min(xmax, self.image_width))
+            ymax = max(1, min(ymax, self.image_height))
+            
+            # 检查坐标有效性
+            if xmin >= xmax or ymin >= ymax:
+                raise ValueError(f"无效的边界框坐标: [{xmin}, {ymin}, {xmax}, {ymax}]，xmin必须小于xmax，ymin必须小于ymax")
+            
+            # 更新对象的边界框
+            obj.bbox = [xmin, ymin, xmax, ymax]
+            # 重新构建XML结构
+            obj.root = etree.Element("object")
+            obj._build_xml_structure()
+            
             self.root.append(obj.to_element())
 
     def add_object(self, name: str, bbox: List[float], difficult: int = 0):
@@ -532,14 +551,30 @@ class VOCAnnotation:
             >>> # 添加困难样本
             >>> annotator.add_object("occluded_car", [300, 200, 450, 300], difficult=1)
         """
-        new_obj = VOCObject(name, bbox, difficult)
+        # 防止边界框越界
+        xmin, ymin, xmax, ymax = bbox
+        
+        # 确保坐标在有效范围内
+        xmin = max(1, min(xmin, self.image_width))
+        ymin = max(1, min(ymin, self.image_height))
+        xmax = max(1, min(xmax, self.image_width))
+        ymax = max(1, min(ymax, self.image_height))
+        
+        # 检查坐标有效性
+        if xmin >= xmax or ymin >= ymax:
+            raise ValueError(f"无效的边界框坐标: [{xmin}, {ymin}, {xmax}, {ymax}]，xmin必须小于xmax，ymin必须小于ymax")
+        
+        # 创建新的边界框
+        adjusted_bbox = [xmin, ymin, xmax, ymax]
+        
+        new_obj = VOCObject(name, adjusted_bbox, difficult)
         self.objects.append(new_obj)
         self.root.append(new_obj.to_element())
         if self.verbose:
             if not hasattr(self, 'logger'):
                 from ..utils.basic import set_logging
                 self.logger = set_logging("VOCAnnotation", verbose=self.verbose)
-            self.logger.info(f"Added object: {name} {bbox}")
+            self.logger.info(f"Added object: {name} {adjusted_bbox}")
 
     def save(self, xml_path: str):
         """

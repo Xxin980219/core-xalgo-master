@@ -6,7 +6,7 @@ import logging
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, InterfaceError
 
 # 类型别名
 DBConfig = Dict[str, Any]
@@ -180,7 +180,11 @@ class MtDBClient:
                        f"{config['database']}")
 
             # 连接参数
-            connect_args = {}
+            connect_args = {
+                "read_timeout": 30,  # 读取超时时间（秒）
+                "write_timeout": 30,  # 写入超时时间（秒）
+                "connect_timeout": 10,  # 连接超时时间（秒）
+            }
             if config.get('ssl'):
                 connect_args['ssl'] = config['ssl']
                 self._logger.debug(f"启用SSL连接: {db_name}")
@@ -188,12 +192,12 @@ class MtDBClient:
             # 创建带连接池的引擎
             engine = create_engine(
                 url,
-                pool_size=config.get('pool_size', 10),  # 连接池保持的连接数
-                max_overflow=config.get('max_overflow', 20),  # 连接池最大溢出连接数
-                pool_timeout=config.get('pool_timeout', 60),  # 获取连接的超时时间（秒）
-                pool_recycle=config.get('pool_recycle', 1800),  # 连接回收时间（秒）
+                pool_size=config.get('pool_size', 5),  # 连接池保持的连接数
+                max_overflow=config.get('max_overflow', 5),  # 连接池最大溢出连接数
+                pool_timeout=config.get('pool_timeout', 30),  # 获取连接的超时时间（秒）
+                pool_recycle=config.get('pool_recycle', 300),  # 连接回收时间（秒），MySQL推荐5分钟
                 pool_pre_ping=True,  # 执行前ping检测连接有效性
-                isolation_level=config.get('isolation_level', "AUTOCOMMIT"),  # 隔离级别
+                isolation_level=config.get('isolation_level', "READ_COMMITTED"),  # 隔离级别，避免使用AUTOCOMMIT
                 connect_args=connect_args
             )
 
@@ -289,20 +293,39 @@ class MtDBClient:
 
                 return query_result
 
-            except OperationalError as e:
+            except (OperationalError, InterfaceError) as e:
                 retry_count += 1
+                # 立即销毁引擎，强制重新连接
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
+
                 if retry_count < max_retries:
                     wait_time = 2 ** (retry_count - 1)  # 指数退避
                     self._logger.warning(f"查询失败 (尝试 {retry_count}/{max_retries}): {e}\n等待 {wait_time}s 后重试...")
                     time.sleep(wait_time)
-                    # 重置引擎，强制重新连接
-                    if db_name in self._engines:
-                        del self._engines[db_name]
                 else:
                     raise QueryError(f"数据库[{db_name}]查询失败: {e}\nSQL: {sql}")
             except SQLAlchemyError as e:
+                # 发生SQLAlchemy错误，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"数据库[{db_name}]查询失败: {e}\nSQL: {sql}")
             except Exception as e:
+                # 发生其他异常，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"执行查询时发生未知错误: {e}")
     
     def _get_cached_result(self, cache_key: str) -> Optional[Any]:
@@ -445,18 +468,30 @@ class MtDBClient:
                 else:
                     return df_result
 
-            except OperationalError as e:
+            except (OperationalError, InterfaceError) as e:
                 retry_count += 1
+                # 立即销毁引擎，强制重新连接
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
+
                 if retry_count < max_retries:
                     wait_time = 2 ** (retry_count - 1)  # 指数退避
                     self._logger.warning(f"查询失败 (尝试 {retry_count}/{max_retries}): {e}\n等待 {wait_time}s 后重试...")
                     time.sleep(wait_time)
-                    # 重置引擎，强制重新连接
-                    if db_name in self._engines:
-                        del self._engines[db_name]
                 else:
                     raise QueryError(f"数据库[{db_name}]查询转换为DataFrame失败: {e}\nSQL: {sql}")
             except Exception as e:
+                # 发生其他异常，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"执行查询时发生未知错误: {e}")
         
         # 理论上不会执行到这里，但为了类型提示添加

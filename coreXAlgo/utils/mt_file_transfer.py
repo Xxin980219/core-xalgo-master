@@ -77,7 +77,8 @@ class MtFileDownloader:
         self._lock = RLock()
         self.logger = set_logging("MtFtpDownloader", verbose=verbose)
 
-    def check_files_existence(self, server_name, local_path_list, max_download_num=None, remote_dir=None, file_path_list=None, shuffle=False, callback=None, max_workers=None):
+    def check_files_existence(self, server_name, local_path_list, max_download_num=None, remote_dir=None, file_path_list=None, shuffle=False, callback=None,
+                              max_workers=None):
         """
         检查要下载的文件是否存在，并过滤出存在的文件及其对应的本地路径
 
@@ -225,7 +226,7 @@ class MtFileDownloader:
         existing_files = []
         existing_local_paths = []
         total_files = len(file_list)
-        
+
         conn = None
         if server_type == 'sftp':
             conn = client._get_connection(server_name)
@@ -234,14 +235,14 @@ class MtFileDownloader:
                 conn = client._ftp
             else:
                 conn = client._get_connection(server_name)
-        
+
         # 添加连接保活机制
         noop_count = 0
         noop_interval = 5
         reconnect_count = 0
         max_reconnects = 10
         batch_size = 200
-        
+
         for i, file_path in enumerate(file_list):
             # 定期重新连接，避免长时间使用同一连接
             if i > 0 and i % batch_size == 0:
@@ -257,7 +258,7 @@ class MtFileDownloader:
                     except Exception as e:
                         self.logger.error(f"获取新连接失败: {str(e)}")
                         continue
-            
+
             try:
                 if server_type == 'sftp':
                     conn.stat(file_path)
@@ -309,7 +310,7 @@ class MtFileDownloader:
                     if noop_count >= noop_interval:
                         try:
                             conn.voidcmd('NOOP')
-                            self.logger.debug(f"发送NOOP命令保持连接 (已检查{i+1}个文件)")
+                            self.logger.debug(f"发送NOOP命令保持连接 (已检查{i + 1}个文件)")
                             noop_count = 0
                         except Exception as e:
                             self.logger.warning(f"发送NOOP命令失败: {str(e)}")
@@ -321,7 +322,7 @@ class MtFileDownloader:
                                     self.logger.info(f"NOOP失败后重新连接成功 (第{reconnect_count}次)")
                                 except Exception as reconnect_error:
                                     self.logger.error(f"重新连接失败: {str(reconnect_error)}")
-                    
+
                     if callback:
                         progress = int((i + 1) / total_files * 100)
                         callback(progress)
@@ -379,7 +380,7 @@ class MtFileDownloader:
             worker_existing_local_paths = []
             worker_client = None
             worker_conn = None
-            
+
             try:
                 # 创建独立的客户端连接
                 if server_type == 'sftp':
@@ -392,9 +393,9 @@ class MtFileDownloader:
                         worker_conn = worker_client._ftp
                     else:
                         worker_conn = worker_client._get_connection(server_name)
-                
+
                 self.logger.debug(f"Worker {worker_id}: 已建立连接")
-                
+
                 # 连接预热：发送几个NOOP命令确保连接稳定
                 self.logger.info(f"Worker {worker_id}: 开始连接预热...")
                 for warmup_attempt in range(3):
@@ -423,7 +424,7 @@ class MtFileDownloader:
                         except Exception as reconn_error:
                             self.logger.error(f"Worker {worker_id}: 预热后重新连接失败: {str(reconn_error)}")
                 self.logger.info(f"Worker {worker_id}: 连接预热完成")
-                
+
                 # 添加连接保活机制
                 noop_count = 0
                 noop_interval = 5  # 更频繁的NOOP，保持连接活跃
@@ -437,7 +438,7 @@ class MtFileDownloader:
                 start_time = time.time()  # 记录开始时间
                 request_interval = 0.1  # 增加请求间隔，避免服务器限流
                 last_operation_time = start_time  # 上次操作时间
-                
+
                 for idx, file_path in enumerate(worker_files):
                     # 基于时间的重新连接，避免连接老化
                     current_time = time.time()
@@ -510,7 +511,7 @@ class MtFileDownloader:
                         wait_time = request_interval - time_since_last_operation
                         time.sleep(wait_time)
                     last_operation_time = time.time()
-                    
+
                     try:
                         if server_type == 'sftp':
                             worker_conn.stat(file_path)
@@ -540,7 +541,7 @@ class MtFileDownloader:
                                 # 尝试使用size命令检查文件
                                 retry_count = 5  # 进一步增加重试次数
                                 file_exists = False
-                                
+
                                 for attempt in range(retry_count):
                                     try:
                                         # 连接健康检查
@@ -575,7 +576,7 @@ class MtFileDownloader:
                                         # 处理425和550错误
                                         error_str = str(ftp_error)
                                         if '425' in error_str or '550' in error_str:
-                                            self.logger.warning(f"Worker {worker_id}: 服务器错误 (尝试 {attempt+1}/{retry_count}): {error_str}")
+                                            self.logger.warning(f"Worker {worker_id}: 服务器错误 (尝试 {attempt + 1}/{retry_count}): {error_str}")
                                             # 立即重新连接
                                             try:
                                                 worker_client._close_connection(server_name)
@@ -603,7 +604,7 @@ class MtFileDownloader:
                                     # 尝试使用LIST命令检查
                                     list_retry_count = 4  # 增加LIST重试次数
                                     list_success = False
-                                    
+
                                     for list_attempt in range(list_retry_count):
                                         try:
                                             # 连接健康检查
@@ -628,10 +629,10 @@ class MtFileDownloader:
 
                                             file_dir = os.path.dirname(file_path)
                                             file_name = os.path.basename(file_path)
-                                            
+
                                             # 增加延迟避免服务器拒绝
                                             time.sleep(0.2)  # 进一步增加延迟
-                                            
+
                                             dir_list = worker_conn.nlst(file_dir)
                                             if file_name in dir_list:
                                                 worker_existing_files.append(file_path)
@@ -646,9 +647,9 @@ class MtFileDownloader:
                                                 break
                                         except Exception as list_error:
                                             error_str = str(list_error)
-                                            self.logger.warning(f"Worker {worker_id}: LIST命令失败 (尝试 {list_attempt+1}/{list_retry_count}): {error_str}")
+                                            self.logger.warning(f"Worker {worker_id}: LIST命令失败 (尝试 {list_attempt + 1}/{list_retry_count}): {error_str}")
                                             consecutive_errors += 1
-                                            
+
                                             # 处理425和550错误，立即重新连接
                                             if '425' in error_str or '550' in error_str:
                                                 # 立即重新连接
@@ -702,7 +703,7 @@ class MtFileDownloader:
                             if noop_count >= noop_interval:
                                 try:
                                     worker_conn.voidcmd('NOOP')
-                                    self.logger.debug(f"Worker {worker_id}: 发送NOOP命令保持连接 (已检查{idx+1}个文件)")
+                                    self.logger.debug(f"Worker {worker_id}: 发送NOOP命令保持连接 (已检查{idx + 1}个文件)")
                                     noop_count = 0
                                     consecutive_errors = 0  # 重置连续错误计数
                                 except Exception as e:
@@ -712,7 +713,7 @@ class MtFileDownloader:
                                         try:
                                             # 增加延迟避免服务器拒绝
                                             time.sleep(retry_delay)
-                                            
+
                                             worker_client._close_connection(server_name)
                                             worker_client._ftpconnect(server_name)
                                             if hasattr(worker_client, '_ftp') and worker_client._ftp:
@@ -725,7 +726,7 @@ class MtFileDownloader:
                                         except Exception as reconnect_error:
                                             self.logger.error(f"Worker {worker_id}: 重新连接失败: {str(reconnect_error)}")
                                             consecutive_errors += 1
-                        
+
                         # 更新进度
                         with progress_lock:
                             checked_count[0] += 1
@@ -745,7 +746,7 @@ class MtFileDownloader:
                             worker_client._close()
                     except Exception as e:
                         self.logger.warning(f"Worker {worker_id}: 关闭连接时出错: {str(e)}")
-            
+
             return worker_existing_files, worker_existing_local_paths
 
         # 使用线程池并行执行检查任务
@@ -759,7 +760,7 @@ class MtFileDownloader:
                     worker_local_path_list[worker_id]
                 )
                 futures.append(future)
-            
+
             # 等待所有任务完成并收集结果
             for future in as_completed(futures):
                 try:
@@ -773,7 +774,8 @@ class MtFileDownloader:
         self.logger.info(f"文件检查完成: 存在 {len(existing_files)} 个文件，不存在 {len(file_list) - len(existing_files)} 个文件")
         return existing_files, existing_local_paths
 
-    def check_files_existence_visualization(self, server_name, local_path_list, max_download_num=100, remote_dir=None, file_path_list=None, shuffle=False, max_workers=None):
+    def check_files_existence_visualization(self, server_name, local_path_list, max_download_num=100, remote_dir=None, file_path_list=None, shuffle=False,
+                                            max_workers=None):
         """
         带可视化进度条的文件存在性检查方法
 
@@ -837,7 +839,6 @@ class MtFileDownloader:
                 max_workers=max_workers
             )
         return existing_files, existing_local_paths
-
 
     def download_files_by_pathlist(self, server_name, local_path_list, max_download_num=None, remote_dir=None,
                                    file_path_list=None, shuffle=False, callback=None, batch_size=20):
@@ -1042,7 +1043,7 @@ class MtFileDownloader:
     def _handle_callback(self, callback, current, total, name):
         """
         处理回调函数
-        
+
         Args:
             callback: 回调函数
             current: 当前进度
@@ -1057,14 +1058,14 @@ class MtFileDownloader:
                 # 如果失败，作为单参数回调调用
                 progress = int(current / total * 100)
                 callback(progress)
-    
-    def parallel_download_by_instances(self, server_name, local_path_list, max_download_num=None, 
-                                     remote_dir=None, file_path_list=None, shuffle=False, 
-                                     callback=None, batch_size=20, num_instances=4, 
-                                     workers_per_instance=2):
+
+    def parallel_download_by_instances(self, server_name, local_path_list, max_download_num=None,
+                                       remote_dir=None, file_path_list=None, shuffle=False,
+                                       callback=None, batch_size=20, num_instances=4,
+                                       workers_per_instance=2):
         """
         使用多个下载器实例并行下载文件
-        
+
         Args:
             server_name (str): 服务器配置名称，必须在初始化时提供的configs中
             local_path_list (Union[str, List[str]]): 本地保存路径，可以是：
@@ -1080,18 +1081,18 @@ class MtFileDownloader:
             batch_size (int, optional): 每批处理文件数，默认为20
             num_instances (int, optional): 下载器实例数量，默认为4
             workers_per_instance (int, optional): 每个下载器实例的工作线程数，默认为2
-        
+
         Returns:
             int: 成功下载的文件数量
-        
+
         Raises:
             ValueError: 当服务器配置不存在或参数不合法时
             RuntimeError: 当下载过程中发生错误时
-        
+
         Example:
             >>> # 初始化下载器
             >>> downloader = MtFileDownloader(configs, workers=8, verbose=True)
-            >>> 
+            >>>
             >>> # 使用4个下载器实例并行下载
             >>> success_count = downloader.parallel_download_by_instances(
             ...     server_name="169",
@@ -1112,11 +1113,11 @@ class MtFileDownloader:
             raise ValueError("batch_size必须大于0")
         if server_name not in self._configs:
             raise ValueError(f"服务器配置 '{server_name}' 不存在，可用配置: {list(self._configs.keys())}")
-        
+
         # 获取服务器类型
         server_config = self._configs[server_name]
         server_type = server_config.get('type', 'ftp').lower()
-        
+
         # 获取文件列表
         if file_path_list is not None:
             file_list = file_path_list
@@ -1129,69 +1130,69 @@ class MtFileDownloader:
                     file_list = client.get_dir_file_list(server_name, remote_dir)
         else:
             raise ValueError("必须提供remote_dir或file_path_list参数")
-        
+
         if not file_list:
             self.logger.warning("无文件可下载")
             return 0
-        
+
         if shuffle:
             random.seed(42)
             random.shuffle(file_list)
-        
+
         # 限制下载数量
         if max_download_num is not None:
             file_list = file_list[:max_download_num]
         total_files = len(file_list)
-        
+
         # 处理local_path_list
         if isinstance(local_path_list, list):
             if len(local_path_list) != len(file_list):
                 raise ValueError("local_path_list长度必须与file_list相同")
-        
+
         # 分割文件列表
         self.logger.info(f"启动 {num_instances} 个下载器实例并行下载")
         self.logger.info(f"每个实例线程数: {workers_per_instance}")
         self.logger.info(f"总线程数: {num_instances * workers_per_instance}")
-        
+
         chunk_size = len(file_list) // num_instances
         file_chunks = []
         local_path_chunks = []
-        
+
         for i in range(num_instances):
             start_idx = i * chunk_size
             end_idx = (i + 1) * chunk_size if i < num_instances - 1 else len(file_list)
             file_chunks.append(file_list[start_idx:end_idx])
-            
+
             if isinstance(local_path_list, list):
                 local_path_chunks.append(local_path_list[start_idx:end_idx])
             else:
                 local_path_chunks.append(local_path_list)
-            
+
             self.logger.info(f"实例 {i}: 负责 {len(file_chunks[-1])} 个文件")
-        
+
         # 定义下载器实例的工作函数
         def instance_worker(instance_id, file_chunk, local_path_chunk):
             """
             单个下载器实例的工作函数
             """
             self.logger.info(f"下载器实例 {instance_id} 开始处理")
-            
+
             # 创建新的下载器实例
             instance_downloader = MtFileDownloader(
                 configs=self._configs,
                 workers=workers_per_instance,
                 verbose=self.logger.isEnabledFor(logging.DEBUG)
             )
-            
+
             # 检查文件存在性
             existing_files, existing_local_paths = instance_downloader.check_files_existence(
                 server_name=server_name,
                 local_path_list=local_path_chunk,
                 file_path_list=file_chunk,
             )
-            
+
             self.logger.info(f"下载器实例 {instance_id}: 存在的文件数量: {len(existing_files)}")
-            
+
             # 下载文件
             success_count = instance_downloader.download_files_by_pathlist(
                 server_name=server_name,
@@ -1200,14 +1201,14 @@ class MtFileDownloader:
                 callback=callback,
                 batch_size=batch_size
             )
-            
+
             self.logger.info(f"下载器实例 {instance_id} 完成: 成功下载 {success_count}/{len(existing_files)} 个文件")
             return success_count
-        
+
         # 使用线程池运行多个下载器实例
         self.logger.info("开始并行下载...")
         all_success_count = 0
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_instances) as executor:
             # 提交任务
             futures = []
@@ -1219,7 +1220,7 @@ class MtFileDownloader:
                     local_path_chunks[i]
                 )
                 futures.append(future)
-            
+
             # 收集结果
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -1227,19 +1228,19 @@ class MtFileDownloader:
                     all_success_count += success_count
                 except Exception as e:
                     self.logger.error(f"下载器实例执行失败: {e}")
-        
+
         # 打印总结果
         self.logger.info(f"\n=== 并行下载完成 ===")
         self.logger.info(f"总成功下载数量: {all_success_count}")
         self.logger.info(f"总文件数量: {len(file_list)}")
-        
+
         return all_success_count
 
     @staticmethod
     def download_files_chunk(downloader_id, file_chunk, local_path_chunk, configs, server_name, workers=2, verbose=True):
         """
         下载文件块
-        
+
         Args:
             downloader_id: 下载器ID
             file_chunk: 要下载的文件路径列表
@@ -1248,21 +1249,21 @@ class MtFileDownloader:
             server_name: 服务器配置名称
             workers: 每个下载器的线程数，默认为2
             verbose: 是否启用详细日志，默认为True
-        
+
         Returns:
             int: 成功下载的文件数量
         """
         print(f"下载器 {downloader_id} 开始处理 {len(file_chunk)} 个文件")
         success_count = 0
-        
+
         try:
             # 创建下载器实例
             downloader = MtFileDownloader(
-                configs=configs, 
-                workers=workers, 
+                configs=configs,
+                workers=workers,
                 verbose=verbose
             )
-            
+
             # 检查文件存在性
             print(f"下载器 {downloader_id}: 开始检查文件存在性...")
             existing_files, existing_local_paths = downloader.check_files_existence(
@@ -1270,13 +1271,13 @@ class MtFileDownloader:
                 local_path_list=local_path_chunk,
                 file_path_list=file_chunk,
             )
-            
+
             print(f"下载器 {downloader_id}: 存在的文件数量: {len(existing_files)}")
-            
+
             if not existing_files:
                 print(f"下载器 {downloader_id}: 没有可下载的文件")
                 return 0
-            
+
             # 下载文件
             print(f"下载器 {downloader_id}: 开始下载文件...")
             success_count = downloader.download_files_by_pathlist(
@@ -1286,7 +1287,7 @@ class MtFileDownloader:
                 callback=lambda current, total, name: print(f"下载器 {downloader_id}: {current}/{total}: {name}"),
                 batch_size=150
             )
-            
+
             print(f"下载器 {downloader_id} 完成: 成功下载 {success_count}/{len(existing_files)} 个文件")
             # 手动验证下载结果
             import os
@@ -1300,7 +1301,7 @@ class MtFileDownloader:
             print(f"下载器 {downloader_id} 执行失败: {str(e)}")
             import traceback
             traceback.print_exc()
-        
+
         return success_count
 
 
@@ -1352,7 +1353,7 @@ class MtFileUploader:
             ...         "type": "ftp"
             ...     }
             ... }
-            >>> 
+            >>>
             >>> # SFTP配置
             >>> sftp_config = {
             ...     "my_sftp": {
@@ -1363,7 +1364,7 @@ class MtFileUploader:
             ...         "type": "sftp"
             ...     }
             ... }
-            >>> 
+            >>>
             >>> uploader = MtFileUploader({**ftp_config, **sftp_config}, workers=4, verbose=True)
         """
         self._workers = workers
@@ -1421,8 +1422,8 @@ class MtFileUploader:
             return existing_files, existing_local_paths
 
     def upload_files_by_pathlist(self, server_name: str, local_path_list: Union[str, List[str]], remote_path_list: Union[str, List[str]],
-                                max_upload_num: Optional[int] = None, shuffle: bool = False, 
-                                callback: Optional[Callable] = None, batch_size: int = 20):
+                                 max_upload_num: Optional[int] = None, shuffle: bool = False,
+                                 callback: Optional[Callable] = None, batch_size: int = 20):
         """
         上传文件到FTP/SFTP服务器
 
@@ -1606,7 +1607,7 @@ class MtFileUploader:
     def _handle_callback(self, callback, current, total, name):
         """
         处理回调函数
-        
+
         Args:
             callback: 回调函数
             current: 当前进度
@@ -1622,14 +1623,14 @@ class MtFileUploader:
                 progress = int(current / total * 100)
                 callback(progress)
 
-    def parallel_upload_by_instances(self, server_name: str, local_path_list: Union[str, List[str]], 
-                                   remote_path_list: Union[str, List[str]], max_upload_num: Optional[int] = None, 
-                                   shuffle: bool = False, callback: Optional[Callable] = None, 
-                                   batch_size: int = 20, num_instances: int = 4, 
-                                   workers_per_instance: int = 2):
+    def parallel_upload_by_instances(self, server_name: str, local_path_list: Union[str, List[str]],
+                                     remote_path_list: Union[str, List[str]], max_upload_num: Optional[int] = None,
+                                     shuffle: bool = False, callback: Optional[Callable] = None,
+                                     batch_size: int = 20, num_instances: int = 4,
+                                     workers_per_instance: int = 2):
         """
         使用多个上传器实例并行上传文件
-        
+
         Args:
             server_name (str): 服务器配置名称，必须在初始化时提供的configs中
             local_path_list (Union[str, List[str]]): 本地文件路径，可以是：
@@ -1646,18 +1647,18 @@ class MtFileUploader:
             batch_size (int, optional): 每批处理文件数，默认为20
             num_instances (int, optional): 上传器实例数量，默认为4
             workers_per_instance (int, optional): 每个上传器实例的工作线程数，默认为2
-        
+
         Returns:
             int: 成功上传的文件数量
-        
+
         Raises:
             ValueError: 当服务器配置不存在或参数不合法时
             RuntimeError: 当上传过程中发生错误时
-        
+
         Example:
             >>> # 初始化上传器
             >>> uploader = MtFileUploader(configs, workers=8, verbose=True)
-            >>> 
+            >>>
             >>> # 使用4个上传器实例并行上传
             >>> success_count = uploader.parallel_upload_by_instances(
             ...     server_name="my_ftp",
@@ -1678,7 +1679,7 @@ class MtFileUploader:
             raise ValueError("batch_size必须大于0")
         if server_name not in self._configs:
             raise ValueError(f"服务器配置 '{server_name}' 不存在，可用配置: {list(self._configs.keys())}")
-        
+
         # 检查本地文件存在性
         local_files, existing_local_paths = self.check_local_files_existence(local_path_list)
         if not local_files:
@@ -1710,7 +1711,7 @@ class MtFileUploader:
             else:
                 # 如果local_path_list不是列表，直接使用前len(local_files)个远程路径
                 remote_files = remote_path_list[:len(local_files)]
-        
+
         if shuffle:
             # 随机打乱文件顺序
             combined = list(zip(local_files, remote_files))
@@ -1719,44 +1720,44 @@ class MtFileUploader:
             local_files, remote_files = zip(*combined)
             local_files = list(local_files)
             remote_files = list(remote_files)
-        
+
         # 限制上传数量
         if max_upload_num is not None:
             local_files = local_files[:max_upload_num]
             remote_files = remote_files[:max_upload_num]
         total_files = len(local_files)
-        
+
         # 分割文件列表
         self.logger.info(f"启动 {num_instances} 个上传器实例并行上传")
         self.logger.info(f"每个实例线程数: {workers_per_instance}")
         self.logger.info(f"总线程数: {num_instances * workers_per_instance}")
-        
+
         chunk_size = len(local_files) // num_instances
         local_file_chunks = []
         remote_file_chunks = []
-        
+
         for i in range(num_instances):
             start_idx = i * chunk_size
             end_idx = (i + 1) * chunk_size if i < num_instances - 1 else len(local_files)
             local_file_chunks.append(local_files[start_idx:end_idx])
             remote_file_chunks.append(remote_files[start_idx:end_idx])
-            
+
             self.logger.info(f"实例 {i}: 负责 {len(local_file_chunks[-1])} 个文件")
-        
+
         # 定义上传器实例的工作函数
         def instance_worker(instance_id, local_chunk, remote_chunk):
             """
             单个上传器实例的工作函数
             """
             self.logger.info(f"上传器实例 {instance_id} 开始处理")
-            
+
             # 创建新的上传器实例
             instance_uploader = MtFileUploader(
                 configs=self._configs,
                 workers=workers_per_instance,
                 verbose=self.logger.isEnabledFor(logging.DEBUG)
             )
-            
+
             # 上传文件
             success_count = instance_uploader.upload_files_by_pathlist(
                 server_name=server_name,
@@ -1765,14 +1766,14 @@ class MtFileUploader:
                 callback=callback,
                 batch_size=batch_size
             )
-            
+
             self.logger.info(f"上传器实例 {instance_id} 完成: 成功上传 {success_count}/{len(local_chunk)} 个文件")
             return success_count
-        
+
         # 使用线程池运行多个上传器实例
         self.logger.info("开始并行上传...")
         all_success_count = 0
-        
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=num_instances) as executor:
             # 提交任务
             futures = []
@@ -1784,7 +1785,7 @@ class MtFileUploader:
                     remote_file_chunks[i]
                 )
                 futures.append(future)
-            
+
             # 收集结果
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -1792,20 +1793,20 @@ class MtFileUploader:
                     all_success_count += success_count
                 except Exception as e:
                     self.logger.error(f"上传器实例执行失败: {e}")
-        
+
         # 打印总结果
         self.logger.info(f"\n=== 并行上传完成 ===")
         self.logger.info(f"总成功上传数量: {all_success_count}")
         self.logger.info(f"总文件数量: {len(local_files)}")
-        
+
         return all_success_count
 
     @staticmethod
-    def upload_files_chunk(uploader_id: int, local_file_chunk: List[str], remote_file_chunk: List[str], 
-                         configs: Dict[str, dict], server_name: str, workers: int = 2, verbose: bool = True):
+    def upload_files_chunk(uploader_id: int, local_file_chunk: List[str], remote_file_chunk: List[str],
+                           configs: Dict[str, dict], server_name: str, workers: int = 2, verbose: bool = True):
         """
         上传文件块
-        
+
         Args:
             uploader_id: 上传器ID
             local_file_chunk: 要上传的本地文件路径列表
@@ -1814,21 +1815,21 @@ class MtFileUploader:
             server_name: 服务器配置名称
             workers: 每个上传器的线程数，默认为2
             verbose: 是否启用详细日志，默认为True
-        
+
         Returns:
             int: 成功上传的文件数量
         """
         print(f"上传器 {uploader_id} 开始处理 {len(local_file_chunk)} 个文件")
         success_count = 0
-        
+
         try:
             # 创建上传器实例
             uploader = MtFileUploader(
-                configs=configs, 
-                workers=workers, 
+                configs=configs,
+                workers=workers,
                 verbose=verbose
             )
-            
+
             # 上传文件
             print(f"上传器 {uploader_id}: 开始上传文件...")
             success_count = uploader.upload_files_by_pathlist(
@@ -1838,11 +1839,315 @@ class MtFileUploader:
                 callback=lambda current, total, name: print(f"上传器 {uploader_id}: {current}/{total}: {name}"),
                 batch_size=150
             )
-            
+
             print(f"上传器 {uploader_id} 完成: 成功上传 {success_count}/{len(local_file_chunk)} 个文件")
-            
+
             return success_count
         except Exception as e:
             print(f"上传器 {uploader_id} 执行失败: {str(e)}")
             return 0
+
+
+class MtFileServerCopier:
+    """
+    多线程并行在SFTP服务器端拷贝文件
+
+    支持多线程并发在SFTP服务器端进行文件拷贝，无需将文件下载到本地。
+    适用于需要在服务器端进行文件整理、备份等场景。
+    """
+
+    def __init__(self, configs: Dict[str, dict], workers: int = 4, verbose: bool = False):
+        """
+        初始化多线程SFTP服务器端拷贝器
+
+        Args:
+            configs (Dict[str, dict]): SFTP配置字典，格式为：
+                {
+                    "sftp_server1": {
+                        "host": "sftp.example.com",
+                        "port": 22,
+                        "username": "username",
+                        "password": "password",
+                        "timeout": 30,
+                        "type": "sftp"  # 必须指定为sftp
+                    }
+                }
+            workers (int, optional): 工作线程数量，默认为4
+            verbose (bool, optional): 是否启用详细日志，默认为False
+
+        Example:
+            >>> sftp_config = {
+            ...     "my_sftp": {
+            ...         "host": "192.168.1.100",
+            ...         "port": 22,
+            ...         "username": "admin",
+            ...         "password": "123456",
+            ...         "type": "sftp"
+            ...     }
+            ... }
+            >>> copier = MtFileServerCopier(sftp_config, workers=4, verbose=True)
+        """
+        self._workers = workers
+        self._configs = configs
+        self._lock = RLock()
+        self.logger = set_logging("MtFileServerCopier", verbose=verbose)
+
+    def copy_files_on_server(self, server_name: str, source_paths: List[str], destination_dir: str,
+                             overwrite: bool = False, show_progress: bool = True,
+                             progress_callback: Optional[Callable[[int, int, str], None]] = None) -> Tuple[int, int, int, List[str]]:
+        """
+        在SFTP服务器端拷贝多个文件（单线程）
+
+        Args:
+            server_name (str): 服务器配置名称
+            source_paths (List[str]): 源文件路径列表（服务器端绝对路径）
+            destination_dir (str): 目标目录路径（服务器端）
+            overwrite (bool, optional): 是否覆盖已存在的目标文件，默认为False
+            show_progress (bool, optional): 是否显示进度条，默认为True
+            progress_callback (Optional[Callable[[int, int, str], None]], optional): 进度回调函数
+                - 参数1: 当前文件索引
+                - 参数2: 总文件数
+                - 参数3: 当前文件名或状态信息
+
+        Returns:
+            Tuple[int, int, int, List[str]]: (已拷贝数量, 已跳过数量, 失败数量, 目标路径列表)
+
+        Example:
+            >>> copier = MtFileServerCopier(configs, workers=4)
+            >>> copied, skipped, failed, targets = copier.copy_files_on_server(
+            ...     server_name="my_sftp",
+            ...     source_paths=["/remote/dirA/file1.txt", "/remote/dirA/file2.txt"],
+            ...     destination_dir="/remote/dirB/",
+            ...     overwrite=False,
+            ...     show_progress=True
+            ... )
+            >>> print(f"拷贝完成: 已拷贝={copied}, 已跳过={skipped}, 失败={failed}")
+        """
+        if server_name not in self._configs:
+            raise ValueError(f"服务器配置 '{server_name}' 不存在")
+
+        server_config = self._configs[server_name]
+        server_type = server_config.get('type', 'sftp').lower()
+
+        if server_type != 'sftp':
+            raise ValueError(f"服务器类型必须是sftp，当前为: {server_type}")
+
+        from .sftp_client import SFTPClient
+
+        with SFTPClient(self._configs) as client:
+            success_count, total_files, target_paths = client.copy_files_on_server(
+                sftp_name=server_name,
+                source_paths=source_paths,
+                destination_dir=destination_dir,
+                overwrite=overwrite,
+                progress_callback=progress_callback,
+                show_progress=show_progress
+            )
+            # 计算已跳过的数量（target_paths中不为None的元素数量）
+            actual_copied = sum(1 for t in target_paths if t is not None)
+            # 由于SFTPClient.copy_files_on_server的success_count包含已跳过的，
+            # 我们需要重新计算：实际拷贝的文件数 = success_count - 跳过的文件数
+            # 但这里我们简化处理，直接返回success_count作为已拷贝+已跳过的总数
+            skipped = 0  # 暂时无法准确计算跳过的数量
+            failed = total_files - actual_copied
+            return actual_copied, skipped, failed, target_paths
+
+    def parallel_copy_on_server(self, server_name: str, source_paths: List[str], destination_dir: str,
+                                overwrite: bool = False, num_instances: int = 4,
+                                workers_per_instance: int = 2, show_progress: bool = True) -> Tuple[int, int, int]:
+        """
+        使用多个拷贝器实例在SFTP服务器端并行拷贝文件
+
+        Args:
+            server_name (str): 服务器配置名称
+            source_paths (List[str]): 源文件路径列表（服务器端绝对路径）
+            destination_dir (str): 目标目录路径（服务器端）
+            overwrite (bool, optional): 是否覆盖已存在的目标文件，默认为False
+            num_instances (int, optional): 拷贝器实例数量，默认为4
+            workers_per_instance (int, optional): 每个拷贝器实例的工作线程数，默认为2
+            show_progress (bool, optional): 是否显示进度条，默认为True
+
+        Returns:
+            Tuple[int, int, int]: (已拷贝数量, 已跳过数量, 失败数量)
+
+        Example:
+            >>> copier = MtFileServerCopier(configs, workers=8)
+            >>> copied, skipped, failed = copier.parallel_copy_on_server(
+            ...     server_name="my_sftp",
+            ...     source_paths=remote_file_list,
+            ...     destination_dir="/remote/backup/",
+            ...     overwrite=False,
+            ...     num_instances=4,
+            ...     workers_per_instance=2,
+            ...     show_progress=True
+            ... )
+            >>> print(f"并行拷贝完成: 已拷贝={copied}, 已跳过={skipped}, 失败={failed}")
+        """
+        if num_instances <= 0:
+            raise ValueError("num_instances必须大于0")
+        if workers_per_instance <= 0:
+            raise ValueError("workers_per_instance必须大于0")
+        if server_name not in self._configs:
+            raise ValueError(f"服务器配置 '{server_name}' 不存在")
+
+        server_config = self._configs[server_name]
+        server_type = server_config.get('type', 'sftp').lower()
+
+        if server_type != 'sftp':
+            raise ValueError(f"服务器类型必须是sftp，当前为: {server_type}")
+
+        total_files = len(source_paths)
+        if total_files == 0:
+            self.logger.warning("无文件可拷贝")
+            return 0, 0, 0
+
+        # 分割文件列表
+        self.logger.info(f"启动 {num_instances} 个拷贝器实例并行拷贝")
+        self.logger.info(f"每个实例线程数: {workers_per_instance}")
+        self.logger.info(f"总线程数: {num_instances * workers_per_instance}")
+
+        chunk_size = len(source_paths) // num_instances
+        file_chunks = []
+
+        for i in range(num_instances):
+            start_idx = i * chunk_size
+            end_idx = (i + 1) * chunk_size if i < num_instances - 1 else len(source_paths)
+            file_chunks.append(source_paths[start_idx:end_idx])
+            self.logger.info(f"实例 {i}: 负责 {len(file_chunks[-1])} 个文件")
+
+        # 定义拷贝器实例的工作函数
+        def instance_worker(instance_id: int, file_chunk: List[str]):
+            """
+            单个拷贝器实例的工作函数
+            """
+            self.logger.info(f"拷贝器实例 {instance_id} 开始处理")
+
+            # 创建新的拷贝器实例
+            instance_copier = MtFileServerCopier(
+                configs=self._configs,
+                workers=workers_per_instance,
+                verbose=True  # 启用详细日志
+            )
+
+            # 定义进度回调函数
+            def progress_callback(current, total, status):
+                nonlocal pbar
+                if pbar:
+                    pbar.update(1)
+                    # 实时更新进度条信息，包含实例ID
+                    pbar.set_postfix({"实例": instance_id, "状态": status})
+
+            # 执行拷贝
+            copied, skipped, failed, _ = instance_copier.copy_files_on_server(
+                server_name=server_name,
+                source_paths=file_chunk,
+                destination_dir=destination_dir,
+                overwrite=overwrite,
+                progress_callback=progress_callback,
+                show_progress=False  # 禁用子进度条，只显示总进度条
+            )
+
+            self.logger.info(f"拷贝器实例 {instance_id} 完成: 已拷贝={copied}, 已跳过={skipped}, 失败={failed}")
+            return copied, skipped, failed
+
+        # 使用线程池运行多个拷贝器实例
+        self.logger.info("开始并行拷贝...")
+        all_copied = 0
+        all_skipped = 0
+        all_failed = 0
+
+        from tqdm import tqdm
+
+        # 创建总进度条
+        pbar = None
+        if show_progress:
+            pbar = tqdm(total=total_files, desc="并行服务器端拷贝", unit="文件")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=num_instances) as executor:
+            # 提交任务
+            futures = []
+            for i in range(num_instances):
+                future = executor.submit(
+                    instance_worker,
+                    i,
+                    file_chunks[i]
+                )
+                futures.append(future)
+
+            # 收集结果
+            for future in concurrent.futures.as_completed(futures):
+                try:
+                    copied, skipped, failed = future.result()
+                    all_copied += copied
+                    all_skipped += skipped
+                    all_failed += failed
+
+                    # 更新进度条
+                    if pbar:
+                        pbar.update(copied + skipped + failed)
+                        pbar.set_postfix({"已拷贝": all_copied, "已跳过": all_skipped, "失败": all_failed})
+
+                except Exception as e:
+                    self.logger.error(f"拷贝器实例执行失败: {e}")
+
+        # 关闭进度条
+        if pbar:
+            pbar.close()
+
+        # 打印总结果
+        self.logger.info(f"\n=== 并行服务器端拷贝完成 ===")
+        self.logger.info(f"已拷贝: {all_copied}")
+        self.logger.info(f"已跳过: {all_skipped}")
+        self.logger.info(f"失败: {all_failed}")
+        self.logger.info(f"总计: {total_files}")
+
+        return all_copied, all_skipped, all_failed
+
+    @staticmethod
+    def copy_files_chunk(copier_id: int, file_chunk: List[str], destination_dir: str,
+                         configs: Dict[str, dict], server_name: str,
+                         overwrite: bool = False, workers: int = 2, verbose: bool = True):
+        """
+        拷贝文件块（静态方法，用于多进程）
+
+        Args:
+            copier_id: 拷贝器ID
+            file_chunk: 要拷贝的文件路径列表
+            destination_dir: 目标目录路径
+            configs: 服务器配置字典
+            server_name: 服务器配置名称
+            overwrite: 是否覆盖已存在的文件
+            workers: 每个拷贝器的线程数，默认为2
+            verbose: 是否启用详细日志，默认为True
+
+        Returns:
+            Tuple[int, int, int]: (已拷贝数量, 已跳过数量, 失败数量)
+        """
+        print(f"拷贝器 {copier_id} 开始处理 {len(file_chunk)} 个文件")
+
+        try:
+            # 创建拷贝器实例
+            copier = MtFileServerCopier(
+                configs=configs,
+                workers=workers,
+                verbose=verbose
+            )
+
+            # 执行拷贝
+            copied, skipped, failed, _ = copier.copy_files_on_server(
+                server_name=server_name,
+                source_paths=file_chunk,
+                destination_dir=destination_dir,
+                overwrite=overwrite,
+                show_progress=False
+            )
+
+            print(f"拷贝器 {copier_id} 完成: 已拷贝={copied}, 已跳过={skipped}, 失败={failed}")
+            return copied, skipped, failed
+
+        except Exception as e:
+            print(f"拷贝器 {copier_id} 执行失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return 0, 0, len(file_chunk)
 
