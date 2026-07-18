@@ -5,9 +5,6 @@
 ## 核心功能
 
 - **字符串处理**：输出带颜色和样式的字符串
-- **随机种子设置**：设置所有随机数生成器的种子，确保结果可复现
-- **日志配置**：配置并返回日志记录器
-- **GPU管理**：打印GPU内存使用情况、检查CUDA环境、设置可见GPU设备
 - **文件序列化**：支持JSON、YAML和pickle格式的对象保存和加载
 - **线程池**：使用线程池并行处理数据项，支持进度显示和错误处理
 
@@ -26,47 +23,6 @@ print(colorstr('hello world'))  # 默认蓝色粗体
 # 组合使用
 warning_msg = colorstr('yellow', 'underline', 'Warning:')
 print(f"{warning_msg} This is a warning message")
-```
-
-### 随机种子设置
-
-```python
-from coreXAlgo.utils import set_all_seed
-
-# 设置随机种子
-set_all_seed(42)
-# 后续的随机操作将产生可复现的结果
-```
-
-### 日志配置
-
-```python
-from coreXAlgo.utils import set_logging
-
-# 创建和使用日志记录器（输出显示）
-logger = set_logging("my_app", verbose=True)
-logger.info("Application started")  # 会输出到控制台
-
-# 创建和使用日志记录器（不输出显示）
-logger = set_logging("my_app", verbose=False)
-logger.info("Application started")  # 不会输出到控制台
-```
-
-### GPU管理
-
-```python
-from coreXAlgo.utils import print_gpu_memory, check_cuda_available, set_gpu_visible
-
-# 打印当前GPU内存使用情况
-print_gpu_memory()
-
-# 检查CUDA环境和GPU配置
-check_cuda_available()
-
-# 设置可见的GPU设备
-set_gpu_visible(0)  # 只使用第0号GPU
-# 或使用多块GPU
-# set_gpu_visible('0,1,2')
 ```
 
 ### 文件序列化

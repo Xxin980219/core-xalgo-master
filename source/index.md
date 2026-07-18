@@ -2,7 +2,7 @@
 
 <div class="hero-section">
   <div class="hero-content">
-    <div class="hero-badge">🚀 v0.5.3</div>
+    <div class="hero-badge">🚀 v0.5.10</div>
     <h1 class="hero-title">coreXAlgo</h1>
     <p class="hero-subtitle">算法开发工具库</p>
     <p class="hero-description">为算法工程师打造的综合性工具集合，提供高效、可靠的技术支持，显著提升开发效率</p>
@@ -387,9 +387,9 @@
   }
 </style>
 
-该算法开发工具库是一个根据本人自身算法工程师日常工作而构建的综合性工具集合。
+CoreXAlgo 是一个综合性的算法库，提供了多种实用工具和算法，主要涵盖文件处理和通用工具函数等领域。该项目设计模块化，结构清晰，便于扩展和维护。
 
-本库整合了算法开发过程中常用的核心功能模块：计算机视觉处理技术、文件操作工具和基础实用函数。通过模块化的设计，为算法研发提供高效、可靠的技术支持，显著提升开发效率，减少重复性工作，确保代码质量和可维护性。
+本库整合了算法开发过程中常用的核心功能模块，通过模块化的设计，为算法研发提供高效、可靠的技术支持，显著提升开发效率，减少重复性工作，确保代码质量和可维护性。
 
 ## 📋 项目概览
 
@@ -398,27 +398,23 @@
     <h3>🎯 核心功能</h3>
     <div class="sub-features-grid">
       <div class="sub-feature-card">
-        <h4>计算机视觉</h4>
-        <ul>
-          <li>图像处理与变换</li>
-          <li>标注工具与格式转换</li>
-          <li>目标检测与可视化</li>
-        </ul>
-      </div>
-      <div class="sub-feature-card">
         <h4>文件处理</h4>
         <ul>
-          <li>批量文件操作</li>
-          <li>格式转换与管理</li>
-          <li>数据预处理管道</li>
+          <li>批量文件操作与管理</li>
+          <li>标注格式转换与验证（YOLO、VOC、LabelMe）</li>
+          <li>数据预处理与增强</li>
+          <li>压缩文件管理</li>
+          <li>图像裁剪与分割</li>
         </ul>
       </div>
       <div class="sub-feature-card">
         <h4>基础工具</h4>
         <ul>
           <li>日志管理与配置</li>
-          <li>网络传输协议</li>
+          <li>FTP/SFTP客户端</li>
           <li>数据库客户端</li>
+          <li>多线程文件传输</li>
+          <li>边界框处理工具</li>
         </ul>
       </div>
     </div>
@@ -431,8 +427,9 @@
         <h4>架构设计</h4>
         <ul>
           <li>模块化代码结构</li>
+          <li>低耦合高内聚设计</li>
+          <li>统一的接口和命名规范</li>
           <li>易于扩展和维护</li>
-          <li>清晰的API设计</li>
         </ul>
       </div>
       <div class="sub-feature-card">
@@ -441,14 +438,16 @@
           <li>多线程并发支持</li>
           <li>批量处理能力</li>
           <li>内存效率优化</li>
+          <li>并行处理架构</li>
         </ul>
       </div>
       <div class="sub-feature-card">
         <h4>质量保证</h4>
         <ul>
-          <li>完善的异常处理</li>
-          <li>详细的文档说明</li>
+          <li>完善的异常处理机制</li>
+          <li>详细的文档和注释</li>
           <li>跨平台兼容性</li>
+          <li>生产级代码质量</li>
         </ul>
       </div>
     </div>
@@ -458,27 +457,27 @@
     <h3>💡 应用场景</h3>
     <div class="sub-features-grid">
       <div class="sub-feature-card">
-        <h4>目标检测</h4>
+        <h4>数据获取与管理</h4>
         <ul>
-          <li>数据集准备与标注</li>
-          <li>格式转换与验证</li>
-          <li>结果可视化分析</li>
+          <li>批量从FTP/SFTP服务器下载数据</li>
+          <li>服务器端文件整理和备份</li>
+          <li>批量文件操作和管理</li>
         </ul>
       </div>
       <div class="sub-feature-card">
-        <h4>图像分割</h4>
+        <h4>数据预处理</h4>
         <ul>
-          <li>多边形处理</li>
-          <li>掩码操作</li>
-          <li>数据增强</li>
+          <li>标注格式转换与验证</li>
+          <li>图像裁剪和增强</li>
+          <li>数据验证和清理</li>
+          <li>YOLO数据预处理</li>
         </ul>
       </div>
       <div class="sub-feature-card">
-        <h4>工业应用</h4>
+        <h4>图像处理</h4>
         <ul>
-          <li>缺陷检测流程</li>
-          <li>图像裁剪分类</li>
-          <li>统计分析报告</li>
+          <li>边界框处理和可视化</li>
+          <li>多边形处理和掩码操作</li>
         </ul>
       </div>
     </div>
@@ -495,26 +494,24 @@
 coreXAlgo/
 ├── 📄 __init__.py              # 主入口文件
 ├── 📄 version.py               # 版本管理
+├── 📄 coreXAlgo_分析报告.md    # 项目分析报告
 │
 ├── 📁 utils/                   # 基础工具模块
-│   ├── 📄 basic.py            # 基础工具函数
-│   ├── 📄 bbox_util.py        # 边界框处理工具
+│   ├── 📄 basic.py            # 基础工具函数（日志、序列化、线程池等）
+│   ├── 📄 bbox_util.py        # 边界框处理工具（转换、绘制等）
 │   ├── 📄 constants.py        # 常量定义
-│   ├── 📄 ftp_client.py       # FTP客户端
-│   ├── 📄 sftp_client.py      # SFTP客户端
+│   ├── 📄 ftp_client.py       # FTP协议文件传输客户端
+│   ├── 📄 sftp_client.py      # SFTP协议文件传输客户端
 │   ├── 📄 mt_db_client.py     # 多线程数据库客户端
-│   └── 📄 mt_file_transfer.py # 多线程文件传输器
-│
-├── 📁 adv_cv/                 # 高级计算机视觉模块
-│   └── 📄 basic.py           # 图像处理功能
+│   └── 📄 mt_file_transfer.py # 多线程文件传输器（下载、上传、服务器端拷贝）
 │
 └── 📁 file_processing/         # 文件处理模块
-    ├── 📄 basic.py           # 文件操作工具
-    ├── 📄 archive.py         # 压缩解压管理
-    ├── 📄 annotation_convert.py # 标注格式转换
-    ├── 📄 data_preprocessing.py # 数据预处理
-    ├── 📄 image_crop.py      # 图像裁剪处理
-    └── 📄 voc_xml_deal.py   # VOC XML处理
+    ├── 📄 basic.py           # 文件操作工具（查找、复制、移动等）
+    ├── 📄 archive.py         # 压缩解压管理（支持多种格式）
+    ├── 📄 annotation_convert.py # 标注格式转换（YOLO、VOC、LabelMe）
+    ├── 📄 data_preprocessing.py # 数据预处理（YOLO数据增强）
+    ├── 📄 image_crop.py      # 图像裁剪处理（滑动窗口、批量处理）
+    └── 📄 annotation_processor.py   # 标注文件处理器
 ```
 :::
 
@@ -527,7 +524,7 @@ coreXAlgo/
 <div class="info-section">
   <div class="info-item">
     <span class="info-label">📦 当前版本</span>
-    <span class="info-value">0.5.3</span>
+    <span class="info-value">0.5.10</span>
   </div>
   <div class="info-item">
     <span class="info-label">🐍 Python 兼容</span>
@@ -535,7 +532,7 @@ coreXAlgo/
   </div>
   <div class="info-item">
     <span class="info-label">📅 更新日期</span>
-    <span class="info-value">2026-03-20</span>
+    <span class="info-value">2026-07-18</span>
   </div>
   <div class="info-item">
     <span class="info-label">👤 作者</span>
@@ -543,7 +540,11 @@ coreXAlgo/
   </div>
   <div class="info-item">
     <span class="info-label">🎯 主要领域</span>
-    <span class="info-value">计算机视觉、数据处理</span>
+    <span class="info-value">计算机视觉、数据处理、文件传输</span>
+  </div>
+  <div class="info-item">
+    <span class="info-label">🔧 核心模块</span>
+    <span class="info-value">utils、file_processing</span>
   </div>
 </div>
 :::
@@ -552,20 +553,11 @@ coreXAlgo/
 
 <div class="features-grid">
   <div class="module-card">
-    <a href="adv_cv/index.html" class="module-link">
-      <span class="module-icon">🖼️</span>
-      <h3>计算机视觉</h3>
-      <p>Adv_cv Module</p>
-      <p>常用的计算机视觉技术和处理方法，以及对 OpenCV 函数的改进版本</p>
-    </a>
-  </div>
-
-  <div class="module-card">
     <a href="file_processing/index.html" class="module-link">
       <span class="module-icon">📂</span>
       <h3>文件处理</h3>
       <p>File_processing Module</p>
-      <p>常用的文件处理功能函数，特别是针对标注数据和图像处理的自定义工具</p>
+      <p>提供多种文件处理功能，包括标注格式转换（YOLO、VOC、LabelMe）、文件操作、压缩文件管理、图像裁剪和数据预处理等</p>
     </a>
   </div>
 
@@ -574,7 +566,7 @@ coreXAlgo/
       <span class="module-icon">🛠️</span>
       <h3>基础工具</h3>
       <p>Utils Module</p>
-      <p>常用的基础工具函数和类，包括网络传输、数据库操作、日志管理等</p>
+      <p>提供多种实用工具函数和类，包括FTP/SFTP客户端、数据库客户端、多线程文件传输、边界框处理和基础工具函数等</p>
     </a>
   </div>
 </div>
@@ -602,11 +594,9 @@ pip install -e .
 ### 基本使用示例
 
 ```python
-from coreXAlgo.utils import set_all_seed, colorstr
-from coreXAlgo.file_processing import get_files, clean_unmatched_files
-
-# 设置随机种子确保可复现
-set_all_seed(42)
+from coreXAlgo.utils import colorstr, MtFileDownloader
+from coreXAlgo.file_processing import get_files, YOLOAnnotation, VOCAnnotation
+import cv2
 
 # 输出彩色日志
 print(colorstr('green', 'bold', '✅ 核心功能初始化完成'))
@@ -615,13 +605,41 @@ print(colorstr('green', 'bold', '✅ 核心功能初始化完成'))
 image_files = get_files('./images', ['.jpg', '.png'])
 print(f"📸 找到 {len(image_files)} 个图片文件")
 
-# 清理不匹配的文件
-clean_unmatched_files(
-    folder_path='./dataset',
-    label_ext='.txt',
-    dry_run=True
+# 标注处理示例
+# YOLO标注
+yolo_annot = YOLOAnnotation(['person', 'car'])
+yolo_annot.add_annotation(0, [0.5, 0.6, 0.1, 0.2])  # 行人
+yolo_annot.save('image_001.txt')
+
+# VOC标注
+voc_annot = VOCAnnotation('image_001.jpg', (640, 480))
+voc_annot.add_object('person', [100, 50, 200, 150])
+voc_annot.save('image_001.xml')
+print("✅ 标注文件生成完成")
+
+# 文件传输示例（需要配置服务器信息）
+"""
+ftp_config = {
+    "my_ftp": {
+        "host": "ftp.example.com",
+        "port": 21,
+        "username": "username",
+        "password": "password",
+        "type": "ftp"
+    }
+}
+
+downloader = MtFileDownloader(ftp_config, workers=4)
+file_list = ["/remote/file1.txt", "/remote/file2.jpg"]
+local_paths = ["./local/file1.txt", "./local/file2.jpg"]
+success_count = downloader.download_files_by_pathlist(
+    server_name="my_ftp",
+    file_path_list=file_list,
+    local_path_list=local_paths
 )
-```
+print(f"✅ 成功下载 {success_count} 个文件")
+"""
+
 
 </div>
 
@@ -665,16 +683,75 @@ clean_unmatched_files(
 ## 📝 版本更新日志
 
 <div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.10 (2026-07-18)</div>
+  <ul class="changelog-list">
+    <li>移除了不常用的 adv_cv 模块，简化项目结构</li>
+    <li>更新了 __init__.py，移除对 adv_cv 的引用</li>
+    <li>清理了相关文档和示例代码</li>
+    <li>更新了版本号到 0.5.10</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.9</div>
+  <ul class="changelog-list">
+    <li>优化了 utils/bbox_util.py，移除了不常用的 DetectionVisualizer 类</li>
+    <li>简化了边界框处理工具，保留核心功能</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.8</div>
+  <ul class="changelog-list">
+    <li>优化了 file_processing/image_crop.py，添加了 sliding_crop_image 和 resize_box_to_target 函数</li>
+    <li>改进了批量多线程图像裁剪功能</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.7 (2026-04-11)</div>
+  <ul class="changelog-list">
+    <li>重命名了 file_processing/voc_xml_deal.py 为 file_processing/annotation_processor.py</li>
+    <li>添加了 YOLOTXTProcessor 类，支持处理 YOLO TXT 格式标注文件</li>
+    <li>支持目标检测和分割标注的类别更新</li>
+    <li>完善了文档和使用示例</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.6 (2026-04-08)</div>
+  <ul class="changelog-list">
+    <li>优化了 coreXAlgo/utils/bbox_util.py 中的 DetectionVisualizer 类</li>
+    <li>为矩形框和多边形框添加了左上角（top_left）和左下角（bottom_left）标签位置选项</li>
+    <li>实现了智能标签位置选择：优先使用左上角，当空间不足时自动切换到左下角</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.5 (2026-04-02)</div>
+  <ul class="changelog-list">
+    <li>优化了 file_processing/annotation_processor.py</li>
+    <li>完善了 VOCXMLProcessor 类的文档字符串</li>
+    <li>改进了 update_categories 方法的实现</li>
+    <li>增强了批量处理和多线程支持</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
+  <div class="changelog-version">📌 版本 0.5.4 (2026-04-01)</div>
+  <ul class="changelog-list">
+    <li>改进了 file_processing/annotation_convert.py 中的 VOCAnnotation 类</li>
+    <li>添加了边界框越界处理</li>
+    <li>使用 max(1, min(x, image_width)) 和 max(1, min(y, image_height)) 确保坐标在有效范围内</li>
+  </ul>
+</div>
+
+<div class="changelog-item">
   <div class="changelog-version">📌 版本 0.5.3 (2026-03-20)</div>
   <ul class="changelog-list">
     <li>修复了 utils/ftp_client.py 中的上传和下载问题</li>
-    <li>实现了临时文件（.part）上传和重命名机制，确保文件上传的可靠性</li>
+    <li>实现了临时文件（.part）上传和重命名机制</li>
     <li>修复了FTP下载时因无法获取文件大小而失败的问题</li>
-    <li>改进了目录切换逻辑，确保在正确的目录中执行文件操作</li>
-    <li>修复了FTP重命名操作失败的问题，使用 sendcmd 代替 voidcmd 处理 "350 Ready for RNTO" 响应</li>
-    <li>移除了传统下载方法，简化代码结构</li>
-    <li>优化了错误处理和日志记录</li>
-    <li>增强了文件传输的可靠性，添加了文件存在性检查</li>
   </ul>
 </div>
 
@@ -683,14 +760,7 @@ clean_unmatched_files(
   <ul class="changelog-list">
     <li>优化了 utils/ftp_client.py 和 utils/sftp_client.py，添加了多线程支持</li>
     <li>实现了线程安全的连接池管理</li>
-    <li>添加了 _process_upload_batch 和 _process_single_upload 方法用于并行上传</li>
-    <li>添加了 _process_download_batch 和 _process_single_download 方法用于并行下载</li>
-    <li>修复了 max_workers 参数未使用的问题</li>
-    <li>修复了 utils/mt_file_transfer.py 中的返回值处理问题</li>
-    <li>确保 parallel_download_by_instances 正确返回成功下载数量</li>
-    <li>统一了FTP和SFTP客户端的返回值处理格式</li>
-    <li>增强了线程安全机制，添加了 threading.RLock() 线程安全锁</li>
-    <li>优化了文件传输性能，支持批量处理文件传输</li>
+    <li>添加了批量上传和下载方法</li>
   </ul>
 </div>
 
@@ -700,10 +770,6 @@ clean_unmatched_files(
     <li>更新了 file_processing/image_crop.py，添加了新参数：separate_images_xml 和 generate_ok_xml</li>
     <li>改进了 image_crop.py 的目录结构管理</li>
     <li>增强了 image_crop.py 的错误处理和日志记录</li>
-    <li>更新了 image_crop.py 的 _process_image 方法以返回正确的错误值</li>
-    <li>为 image_crop.py 添加了 tqdm 安全检查以处理 stdout None 的情况</li>
-    <li>重新排列了 image_crop.py 中 __init__ 方法的参数，将 verbose 移到最后</li>
-    <li>隐藏了 annotation_convert.py 中的某些异常类和类型定义，使其不在文档中显示</li>
   </ul>
 </div>
 
@@ -720,7 +786,6 @@ clean_unmatched_files(
   <ul class="changelog-list">
     <li>修复了 sftp_client.py 中下载成功数量统计错误的问题</li>
     <li>优化了 sftp_client.py 的异常处理逻辑</li>
-    <li>为 mt_file_downloader.py 添加了缺失的 logging 模块导入</li>
     <li>改进了 sftp_client.py 的连接池管理</li>
   </ul>
 </div>
@@ -730,8 +795,7 @@ clean_unmatched_files(
   <ul class="changelog-list">
     <li>重构了文件处理模块，提升了性能</li>
     <li>优化了工具模块，包括 bbox_util.py、ftp_client.py 和 sftp_client.py</li>
-    <li>新增了 mt_file_downloader.py 模块</li>
-    <li>改进了数据库客户端的查询性能和错误处理</li>
+    <li>新增了 mt_file_transfer.py 模块</li>
   </ul>
 </div>
 
@@ -740,7 +804,6 @@ clean_unmatched_files(
   <ul class="changelog-list">
     <li>修复了 SQLAlchemy 版本兼容性问题</li>
     <li>优化了 FTP/SFTP 客户端的错误处理</li>
-    <li>改进了目标检测可视化的性能</li>
   </ul>
 </div>
 
@@ -756,7 +819,6 @@ clean_unmatched_files(
 :caption: 模块文档
 :hidden:
 
-adv_cv/index
 file_processing/index
 utils/index
 ```

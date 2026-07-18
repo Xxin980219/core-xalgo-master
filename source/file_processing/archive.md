@@ -23,7 +23,7 @@ manager = ArchiveManager()
 manager.compress('source_folder/', 'output.zip', CompressionFormat.ZIP)
 
 # 压缩文件夹为TAR.GZ格式
-manager.compress('source_folder/', 'output.tar.gz', CompressionFormat.TARGZ)
+manager.compress('source_folder/', 'output.tar.gz', CompressionFormat.TAR_GZ)
 ```
 
 ### 解压文件

@@ -23,8 +23,14 @@ label_mapping = {"A": "B", "C": "B"}  # 将 A 和 C 映射到 B
 # 创建转换器实例
 converter = AnnotationConverter(class_names, label_mapping)
 
-# 转换标注文件
-converter.convert("input.json", "output.txt", "labelme", "yolo")
+# LabelMe → YOLO目标检测格式
+converter.labelme_to_yolo_obj('labelme/001.json')
+
+# LabelMe → YOLO分割格式
+converter.labelme_to_yolo_seg('labelme/001.json')
+
+# YOLO分割 → LabelMe格式
+converter.yolo_seg_to_labelme('yolo/001.txt', 'images/001.jpg')
 ```
 
 ## API 参考

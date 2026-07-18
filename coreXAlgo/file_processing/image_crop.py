@@ -1,8 +1,8 @@
 import os
 import cv2
+import logging
 from tqdm import tqdm
 
-from ..utils.basic import set_logging
 
 
 def resize_box_to_target(box, target_size, original_size):
@@ -170,7 +170,7 @@ class TaggedImageCrop:
         self.generate_ok_xml = generate_ok_xml
         self.generate_nofound_tag = generate_nofound_tag
         self.verbose = verbose
-        self.logger = set_logging("TaggedImageCrop", verbose=self.verbose)
+        self.logger = logging.getLogger("TaggedImageCrop")
 
         # 初始化保存目录路径
         if save_dir:
@@ -686,7 +686,7 @@ def _single_image_cropping(args, verbose=False):
     Returns:
         tuple: (是否成功, 处理结果)
     """
-    logger = set_logging("single_image_cropping", verbose=verbose)
+    logger = logging.getLogger("single_image_cropping")
     img_path, processor = args
 
     # 查找对应的XML文件
@@ -722,7 +722,7 @@ def batch_multithreaded_image_cropping(img_path_list, processor, max_workers=10,
         Processing image cropping: 100%|██████████| 3/3 [00:05<00:00, 1.67s/it]
         Completed: 3/3 (100.0%)
     """
-    logger = set_logging("batch_multithreaded_image_cropping", verbose=verbose)
+    logger = logging.getLogger("batch_multithreaded_image_cropping")
 
     if not img_path_list:
         logger.warning("没有图片需要处理")

@@ -1,30 +1,34 @@
-from typing import Dict, List, Optional, Union, Iterator, Any
-
+import logging
 import os
 import time
-import logging
+from typing import Dict, List, Optional, Union, Iterator, Any
+
 import pandas as pd
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError, InterfaceError
 
 # 类型别名
 DBConfig = Dict[str, Any]
 EngineCache = Dict[str, Engine]
 QueryCache = Dict[str, tuple]
 
+
 # 自定义异常类
 class DatabaseError(Exception):
     """数据库操作异常基类"""
     pass
 
+
 class ConnectionError(DatabaseError):
     """数据库连接异常"""
     pass
 
+
 class QueryError(DatabaseError):
     """数据库查询异常"""
     pass
+
 
 class TransactionError(DatabaseError):
     """数据库事务异常"""
@@ -39,7 +43,7 @@ class MtDBClient:
     适用于需要从多个数据库执行查询操作的场景，不支持数据修改操作。
 
     Features:
-        - ✅ 多数据库支持（MySQL、PostgreSQL、SQLite等）
+        - ✅ 多数据库支持（MySQL、PostgreSQL、SQLite、Oracle等）
         - ✅ 连接池管理和自动重连
         - ✅ 查询结果缓存
         - ✅ 数据导出
@@ -48,7 +52,7 @@ class MtDBClient:
         - ✅ 上下文管理器支持
     """
 
-    def __init__(self, db_configs: Dict[str, DBConfig], logger: Optional[logging.Logger] = None, 
+    def __init__(self, db_configs: Dict[str, DBConfig], logger: Optional[logging.Logger] = None,
                  warm_up: bool = False, enable_cache: bool = False, cache_ttl: int = 300):
         """
         初始化多数据库客户端实例
@@ -60,31 +64,112 @@ class MtDBClient:
                         "host": "主机地址",
                         "port": 端口号,
                         "user": "用户名",
-                        "password": "密码",
-                        "password_env": "环境变量名",  # 从环境变量获取密码
-                        "database": "数据库名",
-                        "charset": "字符集",  # 可选，默认utf8mb4
-                        "driver": "mysql+pymysql",  # 数据库驱动，可选
-                        "ssl": {},  # SSL配置，可选
+                        "password": "密码",                     # 明文密码（不推荐）
+                        "password_env": "环境变量名",           # 从环境变量获取密码（推荐）
+                        "database": "数据库名",                 # MySQL / PostgreSQL / SQLite
+                        "service_name": "服务名",              # Oracle 专用（二选一）
+                        "sid": "SID",                          # Oracle 专用（二选一）
+                        "lib_dir": "Oracle Instant Client路径",  # Oracle 专用，启用thick模式
+                        "charset": "字符集",                   # 可选，默认 utf8mb4（MySQL）
+                        "driver": "数据库驱动",                # 可选，默认 mysql+pymysql
+                        "ssl": {},                             # SSL 配置，可选
+                        "pool_size": 5,                       # 连接池大小，可选
+                        "max_overflow": 5,                    # 连接池溢出，可选
+                        "pool_timeout": 30,                   # 获取连接超时，可选
+                        "pool_recycle": 300,                  # 连接回收时间（秒），可选
+                        "isolation_level": "READ_COMMITTED"    # 事务隔离级别，可选
                     },
                     "db_name2": {...}
                 }
-            logger (Optional[logging.Logger]): 日志记录器，默认使用内置日志器
-            warm_up (bool): 是否在初始化时预热连接池，默认False
-            enable_cache (bool): 是否启用查询结果缓存，默认False
-            cache_ttl (int): 缓存过期时间（秒），默认300秒
 
-        Example:
+            logger (Optional[logging.Logger]): 日志记录器，默认使用内置日志器
+            warm_up (bool): 是否在初始化时预热连接池，默认 False
+            enable_cache (bool): 是否启用查询结果缓存，默认 False
+            cache_ttl (int): 缓存过期时间（秒），默认 300 秒
+
+        Examples:
+            >>> # ✅ MySQL 示例
             >>> configs = {
             ...     "user_db": {
             ...         "host": "localhost",
             ...         "port": 3306,
             ...         "user": "root",
-            ...         "password_env": "DB_PASSWORD",  # 从环境变量获取密码
-            ...         "database": "user_management"
+            ...         "password_env": "MYSQL_PASSWORD",
+            ...         "database": "user_management",
+            ...         "driver": "mysql+pymysql"
             ...     }
             ... }
             >>> client = MtDBClient(configs, warm_up=True, enable_cache=True)
+
+            >>> # ✅ PostgreSQL 示例
+            >>> configs = {
+            ...     "analytics_db": {
+            ...         "host": "pg.example.com",
+            ...         "port": 5432,
+            ...         "user": "analyst",
+            ...         "password": "secure_password",
+            ...         "database": "analytics",
+            ...         "driver": "postgresql+psycopg2"
+            ...     }
+            ... }
+            >>> client = MtDBClient(configs)
+
+            >>> # ✅ SQLite 示例
+            >>> configs = {
+            ...     "local_db": {
+            ...         "database": "/data/local.db",
+            ...         "driver": "sqlite"
+            ...     }
+            ... }
+            >>> client = MtDBClient(configs)
+
+            >>> # ✅ Oracle（oracledb Thin 模式，推荐）
+            >>> configs = {
+            ...     "oracle_prod": {
+            ...         "host": "10.141.70.163",
+            ...         "port": 1521,
+            ...         "user": "datamanagement",
+            ...         "password_env": "ORACLE_PASSWORD",
+            ...         "service_name": "DATAMANAGEMENT",
+            ...         "driver": "oracle+oracledb"
+            ...     }
+            ... }
+
+            >>> # ✅ Oracle（oracledb Thick 模式，支持字符集）
+            >>> configs = {
+            ...     "oracle_thick": {
+            ...         "host": "10.141.70.163",
+            ...         "port": 1521,
+            ...         "user": "datamanagement",
+            ...         "password": "xhtr@B7cim",
+            ...         "service_name": "adctmsdb",
+            ...         "driver": "oracle+oracledb",
+            ...         "lib_dir": "C:\Program Files2\oracle\instantclient_21_20"  # Oracle Instant Client路径
+            ...     }
+            ... }
+            >>> client = MtDBClient(configs, warm_up=True)
+
+            >>> # ✅ Oracle（使用 SID）
+            >>> configs = {
+            ...     "oracle_sid": {
+            ...         "host": "10.141.70.163",
+            ...         "port": 1521,
+            ...         "user": "datamanagement",
+            ...         "password": "xhtr@B7cim",
+            ...         "sid": "ORCL",
+            ...         "driver": "oracle+cx_oracle"
+            ...     }
+            ... }
+            >>> client = MtDBClient(configs)
+
+        Raises:
+            ValueError: 数据库配置为空或格式不正确
+            ConnectionError: 数据库连接失败（预热阶段）
+
+        Notes:
+            - Oracle 推荐使用 `oracle+oracledb`（无需 Oracle Client）
+            - 生产环境建议使用 `password_env` 而非明文密码
+            - `warm_up=True` 会在初始化时测试每个数据库连通性
         """
         if not db_configs or not isinstance(db_configs, dict):
             raise ValueError("数据库配置不能为空且必须为字典类型")
@@ -95,15 +180,15 @@ class MtDBClient:
         self._enable_cache = enable_cache
         self._cache_ttl = cache_ttl
         self._query_cache: QueryCache = {}  # 查询缓存 {cache_key: (result, timestamp)}
-        
+
         # 连接预热
         if warm_up:
             self._warm_up_connections()
-    
+
     def _warm_up_connections(self):
         """
         预热数据库连接池
-        
+
         为每个配置的数据库创建连接并执行简单查询，确保连接池初始化完成
         """
         for db_name in self._configs:
@@ -112,7 +197,14 @@ class MtDBClient:
                 engine = self._get_engine(db_name)
                 # 执行简单查询测试连接
                 with engine.connect() as conn:
-                    conn.execute(text("SELECT 1"))
+                    # 根据数据库类型使用不同的测试查询
+                    driver = self._configs[db_name].get('driver', 'mysql+pymysql')
+                    if driver.startswith('oracle'):
+                        # Oracle数据库的测试查询
+                        conn.execute(text("SELECT 1 FROM DUAL"))
+                    else:
+                        # 其他数据库的测试查询
+                        conn.execute(text("SELECT 1"))
                 execution_time = time.time() - start_time
                 self._logger.debug(f"连接预热成功: {db_name} (耗时: {execution_time:.3f}s)")
             except Exception as e:
@@ -131,6 +223,9 @@ class MtDBClient:
         Raises:
             ConnectionError: 数据库连接失败时抛出
         """
+        import oracledb
+        oracledb.defaults.driver_name = "thin"
+
         if db_name not in self._configs:
             raise ValueError(f"未知数据库: {db_name}，可用数据库: {list(self._configs.keys())}")
 
@@ -140,7 +235,7 @@ class MtDBClient:
 
         try:
             config = self._configs[db_name].copy()
-            
+
             # 从环境变量获取密码
             if 'password_env' in config:
                 password_env = config['password_env']
@@ -150,52 +245,126 @@ class MtDBClient:
                     self._logger.debug(f"从环境变量获取密码: {password_env}")
                 else:
                     self._logger.warning(f"环境变量 '{password_env}' 未设置，使用配置中的密码")
-            
+
             # 验证必要参数
-            required_params = ['user', 'password', 'host', 'database']
+            required_params = ['user', 'password', 'host']
             for param in required_params:
                 if param not in config:
                     raise ValueError(f"数据库配置缺少必要参数: {param}")
-            
-            # 构建数据库连接URL
+
+            # URL 编码用户名和密码
+            from urllib.parse import quote_plus
+            username = quote_plus(config['user'])
+            password = quote_plus(config['password'])
+
             driver = config.get('driver', 'mysql+pymysql')
-            port = config.get('port', 3306)
-            charset = config.get('charset', 'utf8mb4')
-            
-            # 根据数据库类型构建不同的连接URL
-            if driver.startswith('mysql'):
-                url = (f"{driver}://{config['user']}:{config['password']}@"
-                       f"{config['host']}:{port}/"
-                       f"{config['database']}?charset={charset}")
+
+            # ===============================
+            # Oracle（oracledb Thin 模式）
+            # ===============================
+            if driver.startswith('oracle'):
+                port = config.get('port', 1521)
+
+                # 检查是否需要使用thick模式（字符集支持）
+                lib_dir = config.get('lib_dir')
+                if not lib_dir:
+                    # 当没有lib_dir参数时，提示错误
+                    self._raise_oracle_client_error("Oracle 配置缺少 lib_dir 参数")
+                
+                # 检查lib_dir路径是否存在
+                if not os.path.exists(lib_dir):
+                    self._raise_oracle_client_error(f"Oracle Instant Client路径不存在: {lib_dir}")
+                
+                try:
+                    oracledb.init_oracle_client(lib_dir=lib_dir)
+                    self._logger.debug(f"使用Oracle Instant Client: {lib_dir}")
+                except Exception as e:
+                    self._raise_oracle_client_error(f"Oracle Instant Client初始化失败: {e}")
+
+                if 'service_name' in config:
+                    service_name = config['service_name']
+                    url = (
+                        f"{driver}://{username}:{password}@"
+                        f"{config['host']}:{port}/?service_name={service_name}"
+                    )
+                elif 'sid' in config:
+                    sid = config['sid']
+                    url = (
+                        f"{driver}://{username}:{password}@"
+                        f"{config['host']}:{port}/?sid={sid}"
+                    )
+                else:
+                    raise ValueError("Oracle 配置必须包含 service_name 或 sid")
+
+            # ===============================
+            # MySQL
+            # ===============================
+            elif driver.startswith('mysql'):
+                charset = config.get('charset', 'utf8mb4')
+                url = (
+                    f"{driver}://{username}:{password}@"
+                    f"{config['host']}:{config.get('port', 3306)}/"
+                    f"{config.get('database', '')}?charset={charset}"
+                )
+
+            # ===============================
+            # PostgreSQL
+            # ===============================
             elif driver.startswith('postgresql'):
-                url = (f"{driver}://{config['user']}:{config['password']}@"
-                       f"{config['host']}:{config.get('port', 5432)}/"
-                       f"{config['database']}")
+                url = (
+                    f"{driver}://{username}:{password}@"
+                    f"{config['host']}:{config.get('port', 5432)}/"
+                    f"{config.get('database', '')}"
+                )
+
+            # ===============================
+            # SQLite
+            # ===============================
             elif driver.startswith('sqlite'):
-                url = f"{driver}:///{config['database']}"
+                url = f"{driver}:///{config.get('database', '')}"
+
             else:
-                # 默认使用MySQL格式
-                url = (f"{driver}://{config['user']}:{config['password']}@"
-                       f"{config['host']}:{port}/"
-                       f"{config['database']}")
+                raise ValueError(f"不支持的数据库驱动: {driver}")
 
-            # 连接参数
+            # ===============================
+            # 通用连接参数
+            # ===============================
             connect_args = {}
-            if config.get('ssl'):
-                connect_args['ssl'] = config['ssl']
-                self._logger.debug(f"启用SSL连接: {db_name}")
 
-            # 创建带连接池的引擎
-            engine = create_engine(
-                url,
-                pool_size=config.get('pool_size', 10),  # 连接池保持的连接数
-                max_overflow=config.get('max_overflow', 20),  # 连接池最大溢出连接数
-                pool_timeout=config.get('pool_timeout', 60),  # 获取连接的超时时间（秒）
-                pool_recycle=config.get('pool_recycle', 1800),  # 连接回收时间（秒）
-                pool_pre_ping=True,  # 执行前ping检测连接有效性
-                isolation_level=config.get('isolation_level', "AUTOCOMMIT"),  # 隔离级别
-                connect_args=connect_args
-            )
+            if driver.startswith('mysql'):
+                connect_args = {
+                    "read_timeout": 30,
+                    "write_timeout": 30,
+                    "connect_timeout": 10,
+                }
+                if config.get('ssl'):
+                    connect_args['ssl'] = config['ssl']
+
+            # ===============================
+            # 创建 SQLAlchemy Engine
+            # ===============================
+            if driver.startswith('oracle'):
+                engine = create_engine(
+                    url,
+                    pool_size=config.get('pool_size', 5),
+                    max_overflow=config.get('max_overflow', 5),
+                    pool_timeout=config.get('pool_timeout', 30),
+                    pool_recycle=config.get('pool_recycle', 3600),
+                    pool_pre_ping=True,
+                    isolation_level=config.get('isolation_level', "READ_COMMITTED"),
+                    connect_args=connect_args
+                )
+            else:
+                engine = create_engine(
+                    url,
+                    pool_size=config.get('pool_size', 5),
+                    max_overflow=config.get('max_overflow', 5),
+                    pool_timeout=config.get('pool_timeout', 30),
+                    pool_recycle=config.get('pool_recycle', 300),
+                    pool_pre_ping=True,
+                    isolation_level=config.get('isolation_level', "READ_COMMITTED"),
+                    connect_args=connect_args
+                )
 
             self._engines[db_name] = engine
             self._logger.debug(f"创建数据库引擎成功: {db_name}")
@@ -203,6 +372,9 @@ class MtDBClient:
 
         except OperationalError as e:
             raise ConnectionError(f"数据库[{db_name}]连接失败: {e}")
+        except ConnectionError as e:
+            # 直接重新抛出ConnectionError，避免重复包装
+            raise
         except Exception as e:
             raise ConnectionError(f"创建数据库[{db_name}]引擎失败: {e}")
 
@@ -249,7 +421,7 @@ class MtDBClient:
 
         # 确定是否使用缓存
         should_use_cache = use_cache if use_cache is not None else self._enable_cache
-        
+
         # 生成缓存键
         cache_key = None
         if should_use_cache:
@@ -289,29 +461,48 @@ class MtDBClient:
 
                 return query_result
 
-            except OperationalError as e:
+            except (OperationalError, InterfaceError) as e:
                 retry_count += 1
+                # 立即销毁引擎，强制重新连接
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
+
                 if retry_count < max_retries:
                     wait_time = 2 ** (retry_count - 1)  # 指数退避
                     self._logger.warning(f"查询失败 (尝试 {retry_count}/{max_retries}): {e}\n等待 {wait_time}s 后重试...")
                     time.sleep(wait_time)
-                    # 重置引擎，强制重新连接
-                    if db_name in self._engines:
-                        del self._engines[db_name]
                 else:
                     raise QueryError(f"数据库[{db_name}]查询失败: {e}\nSQL: {sql}")
             except SQLAlchemyError as e:
+                # 发生SQLAlchemy错误，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"数据库[{db_name}]查询失败: {e}\nSQL: {sql}")
             except Exception as e:
+                # 发生其他异常，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"执行查询时发生未知错误: {e}")
-    
+
     def _get_cached_result(self, cache_key: str) -> Optional[Any]:
         """
         获取缓存的查询结果
-        
+
         Args:
             cache_key (str): 缓存键
-            
+
         Returns:
             Optional[Any]: 缓存的结果或None
         """
@@ -325,11 +516,11 @@ class MtDBClient:
                 del self._query_cache[cache_key]
                 self._logger.debug(f"缓存过期: {cache_key[:100]}...")
         return None
-    
+
     def _cache_result(self, cache_key: str, result: Any):
         """
         缓存查询结果
-        
+
         Args:
             cache_key (str): 缓存键
             result (Any): 查询结果
@@ -337,7 +528,7 @@ class MtDBClient:
         self._query_cache[cache_key] = (result, time.time())
         # 清理过期缓存，防止内存泄漏
         self._clean_expired_cache()
-    
+
     def _clean_expired_cache(self):
         """
         清理过期的缓存项
@@ -351,6 +542,26 @@ class MtDBClient:
             del self._query_cache[key]
         if expired_keys:
             self._logger.debug(f"清理过期缓存: {len(expired_keys)} 项")
+
+    def _raise_oracle_client_error(self, error_message: str):
+        """
+        抛出Oracle客户端错误，包含详细的安装指南
+
+        Args:
+            error_message (str): 错误信息
+
+        Raises:
+            ConnectionError: 包含详细安装指南的连接错误
+        """
+        full_error_msg = f"{error_message}\n"
+        full_error_msg += "\n请按照以下步骤安装Oracle Instant Client：\n"
+        full_error_msg += "1️⃣ 下载 Oracle Instant Client（64 位）\n"
+        full_error_msg += "   官网：https://www.oracle.com/database/technologies/instant-client.html\n"
+        full_error_msg += "   推荐版本：19c 或 21c Basic\n"
+        full_error_msg += "   解压到例如：C:\oracle\instantclient_21_12\n"
+        full_error_msg += "2️⃣ 在数据库配置中添加lib_dir参数：\n"
+        full_error_msg += "   lib_dir: \"C:\oracle\instantclient_21_12\""
+        raise ConnectionError(full_error_msg)
 
     def query_to_dataframe(
             self,
@@ -375,7 +586,7 @@ class MtDBClient:
             max_retries (int, optional): 最大重试次数，默认为3次
 
         Returns:
-            Union[pd.DataFrame, Iterator[pd.DataFrame]]: 
+            Union[pd.DataFrame, Iterator[pd.DataFrame]]:
                 - chunk_size=None: 返回包含查询结果的DataFrame
                 - chunk_size!=None: 返回DataFrame迭代器
 
@@ -399,12 +610,13 @@ class MtDBClient:
             raise ValueError("SQL语句不能为空且必须为字符串")
 
         engine = self._get_engine(db_name)
+        driver = self._configs[db_name].get('driver', '')
         retry_count = 0
 
         while retry_count < max_retries:
             try:
                 start_time = time.time()
-                
+
                 # 构建读取参数
                 read_kwargs = {
                     "sql": sql,
@@ -412,27 +624,31 @@ class MtDBClient:
                     "params": params,
                     "chunksize": chunk_size
                 }
-                
+
                 # 添加可选参数
                 if dtype is not None:
                     read_kwargs["dtype"] = dtype
-                
+
                 # 如果指定了列，修改SQL语句只选择这些列
                 if columns is not None and len(columns) > 0:
+
                     # 简单的列名处理，实际应用中可能需要更复杂的处理
-                    columns_str = ", ".join([f"`{col}`" for col in columns])
-                    # 尝试从SQL中提取表名并构建新的查询
-                    # 这里只是一个简单的实现，实际应用中可能需要更复杂的SQL解析
+                    if driver.startswith('oracle'):
+                        # Oracle 用双引号，不强行 upper
+                        columns_str = ", ".join([f'"{col}"' for col in columns])
+                    else:
+                        columns_str = ", ".join([f"`{col}`" for col in columns])
+
+                    # 只替换最外层的 SELECT ... FROM
                     if "SELECT" in sql.upper() and "FROM" in sql.upper():
                         # 简单替换SELECT部分
                         import re
-                        sql_pattern = r"SELECT.*?FROM"
+                        sql_pattern = r"SELECT\s+.*?\s+FROM"
                         new_select = f"SELECT {columns_str} FROM"
                         modified_sql = re.sub(sql_pattern, new_select, sql, flags=re.IGNORECASE | re.DOTALL)
                         read_kwargs["sql"] = modified_sql
                         self._logger.debug(f"修改SQL语句只选择指定列: {columns_str}")
-                
-                # 使用pandas直接读取SQL查询结果
+
                 df_result = pd.read_sql_query(**read_kwargs)
 
                 execution_time = time.time() - start_time
@@ -445,24 +661,34 @@ class MtDBClient:
                 else:
                     return df_result
 
-            except OperationalError as e:
+            except (OperationalError, InterfaceError) as e:
                 retry_count += 1
+                # 立即销毁引擎，强制重新连接
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
+
                 if retry_count < max_retries:
                     wait_time = 2 ** (retry_count - 1)  # 指数退避
                     self._logger.warning(f"查询失败 (尝试 {retry_count}/{max_retries}): {e}\n等待 {wait_time}s 后重试...")
                     time.sleep(wait_time)
-                    # 重置引擎，强制重新连接
-                    if db_name in self._engines:
-                        del self._engines[db_name]
                 else:
                     raise QueryError(f"数据库[{db_name}]查询转换为DataFrame失败: {e}\nSQL: {sql}")
             except Exception as e:
+                # 发生其他异常，销毁连接并抛出
+                if db_name in self._engines:
+                    try:
+                        self._engines[db_name].dispose()
+                    except Exception:
+                        pass
+                    del self._engines[db_name]
                 raise QueryError(f"执行查询时发生未知错误: {e}")
-        
+
         # 理论上不会执行到这里，但为了类型提示添加
         return pd.DataFrame()
-
-
 
     def _close_all(self):
         """关闭所有数据库连接并清理资源"""
@@ -504,7 +730,7 @@ class MtDBClient:
             >>> print(f"数据库中有 {len(tables)} 个表: {tables}")
         """
         engine = self._get_engine(db_name)
-        
+
         try:
             inspector = engine.inspect()
             tables = inspector.get_table_names()
@@ -530,7 +756,7 @@ class MtDBClient:
             ...     print(f"列: {column}, 类型: {info['type']}, 是否为空: {info['nullable']}")
         """
         engine = self._get_engine(db_name)
-        
+
         try:
             inspector = engine.inspect()
             columns = inspector.get_columns(table_name)
@@ -582,17 +808,15 @@ class MtDBClient:
         try:
             # 执行查询并获取DataFrame
             df = self.query_to_dataframe(db_name, sql, params)
-            
+
             # 导出为CSV
             df.to_csv(output_file, sep=sep, encoding=encoding, index=False)
-            
+
             rows_exported = len(df)
             self._logger.info(f"导出了 {rows_exported} 行数据到 {output_file}")
             return rows_exported
         except Exception as e:
             raise QueryError(f"导出CSV失败: {e}")
-
-
 
     def get_database_metadata(self, db_name: str) -> Dict[str, Any]:
         """
@@ -610,18 +834,18 @@ class MtDBClient:
             >>> print(f"表数量: {metadata['table_count']}")
         """
         engine = self._get_engine(db_name)
-        
+
         try:
             inspector = engine.inspect()
             tables = inspector.get_table_names()
-            
+
             metadata = {
                 'engine': str(engine.url.drivername),
                 'database': str(engine.url.database),
                 'table_count': len(tables),
                 'tables': tables
             }
-            
+
             self._logger.debug(f"获取数据库 {db_name} 的元数据成功")
             return metadata
         except Exception as e:

@@ -1,177 +1,189 @@
-import shutil
-import time
-import zipfile
-from pathlib import Path
-from typing import Optional, Union, List, Set
 import os
-from tqdm import tqdm
+import shutil
+from pathlib import Path
+from typing import Union, List, Set
 
-from ..utils.basic import set_logging
 from ..utils.constants import IMAGE_TYPE_FORMAT
 
 
-def get_files(directory: str, extensions: Union[str, List[str]] = '.jpg',
-              exclude_dirs: Union[str, List[str]] = None) -> List[str]:
+def get_files(
+        directory: str,
+        extensions: Union[str, List[str]] = '.jpg',
+        exclude_dirs: Union[str, List[str]] = None,
+        recursive: bool = True
+) -> List[str]:
     """
     查找指定目录下所有匹配给定扩展名的文件路径
 
     Args:
         directory: 要搜索的目录路径
-        extensions: 要匹配的文件扩展名，可以是单个字符串（如 '.jpg'）或列表（如 ['.jpg', '.png']）
-        exclude_dirs: 要排除的目录名，可以是单个字符串或列表（支持相对路径或绝对路径）
+        extensions: 要匹配的文件扩展名，可以是单个字符串（如 '.jpg'）或列表
+        exclude_dirs: 要排除的目录名（支持相对路径或绝对路径）
+        recursive: 是否递归子目录（默认 True）
 
     Returns:
         匹配文件的完整路径列表（按字母顺序排序）
 
     Example:
-        >>> # 基本用法：查找所有jpg文件
+        >>> # 1️⃣ 基本用法：查找所有 jpg 文件（递归）
         >>> jpg_files = get_files('./images', '.jpg')
-        >>> print(f"找到 {len(jpg_files)} 个JPG文件")
-        >>>
-        >>> # 查找多种图片格式
-        >>> image_files = get_files('./photos', ['.jpg', '.jpeg', '.png', '.gif'])
-        >>> for file in image_files:
-        >>>     print(file)
-        >>>
-        >>> # 排除缓存和临时目录
-        >>> data_files = get_files('./data', '.csv',
-        >>>                      exclude_dirs=['temp', 'cache', 'backup'])
-        >>>
-        >>> # 排除嵌套目录（相对路径）
-        >>> config_files = get_files('/etc/app', '.conf',
-        >>>                        exclude_dirs=['logs/old', 'tmp/sessions'])
-        >>>
-        >>> # 查找所有Python文件，排除测试和文档目录
-        >>> python_files = get_files('./src', '.py',
-        >>>                        exclude_dirs=['tests', 'docs', '__pycache__'])
+        >>> print(f"找到 {len(jpg_files)} 个 JPG 文件")
+
+        >>> # 2️⃣ 只查找一级目录下的 xml 文件（❗常用）
+        >>> xml_files = get_files('./labels', '.xml', recursive=False)
+        >>> for xml in xml_files:
+        >>>     print(xml)
+
+        >>> # 3️⃣ 查找多种图片格式（递归）
+        >>> images = get_files('./dataset', ['.jpg', '.png', '.jpeg'])
+        >>> print(images[:3])
+
+        >>> # 4️⃣ 排除多个目录（相对路径）
+        >>> data_files = get_files(
+        >>>     './project',
+        >>>     '.csv',
+        >>>     exclude_dirs=['temp', 'cache', 'backup']
+        >>> )
+
+        >>> # 5️⃣ 排除嵌套目录（相对路径）
+        >>> config_files = get_files(
+        >>>     '/etc/app',
+        >>>     '.conf',
+        >>>     exclude_dirs=['logs/old', 'tmp/sessions']
+        >>> )
+
+        >>> # 6️⃣ 查找 Python 文件，不递归
+        >>> py_files = get_files(
+        >>>     './src',
+        >>>     '.py',
+        >>>     exclude_dirs=['tests', '__pycache__'],
+        >>>     recursive=False
+        >>> )
+
+        >>> # 7️⃣ 查找所有文件（忽略扩展名）
+        >>> all_files = get_files('./data', extensions=None)
 
     Notes:
         - 扩展名匹配不区分大小写（.JPG 和 .jpg 都会被匹配）
-        - 排除目录基于名称匹配，区分大小写
-        - 返回的路径是文件的绝对路径
-        - 如果extensions为None或空列表，则匹配所有文件类型
+        - 排除目录基于绝对路径比较，区分大小写
+        - recursive=False 时仅扫描 directory 本身
+        - 返回路径为绝对路径
     """
-    # 参数验证
+
+    # ---------- 参数校验 ----------
     if not os.path.isdir(directory):
         raise ValueError(f"无效的目录路径: {directory}")
 
-    if not isinstance(extensions, (str, list)):
-        raise TypeError("扩展名参数必须是字符串或列表")
+    base_dir = os.path.abspath(directory)
 
-        # 处理排除目录参数
-    if exclude_dirs is None:
-        exclude_dirs = []
-    elif isinstance(exclude_dirs, str):
+    # ---------- 扩展名处理 ----------
+    if extensions is None:
+        # None 表示不过滤扩展名
+        extensions = None
+    else:
+        if isinstance(extensions, str):
+            extensions = [extensions]
+        if not isinstance(extensions, list):
+            raise TypeError("扩展名参数必须是字符串、列表或None")
+
+        # 统一格式：.jpg，并转为小写（支持大小写不敏感匹配）
+        extensions = [
+            ext.lower() if ext.startswith('.') else f'.{ext.lower()}'
+            for ext in extensions
+        ]
+
+    # ---------- 排除目录处理 ----------
+    exclude_dirs = exclude_dirs or []
+    if isinstance(exclude_dirs, str):
         exclude_dirs = [exclude_dirs]
-    elif not isinstance(exclude_dirs, list):
-        raise TypeError("排除目录参数必须是字符串、列表或None")
 
-    # 统一处理扩展名格式
-    if isinstance(extensions, str):
-        extensions = [extensions]
-
-    # 确保扩展名以点开头
-    extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in extensions]
-
-    # 规范化排除目录路径，确保正确比较
     normalized_exclude_dirs = []
-    for exclude_dir in exclude_dirs:
-        # 如果是相对路径，转换为绝对路径
-        if not os.path.isabs(exclude_dir):
-            exclude_dir = os.path.abspath(os.path.join(directory, exclude_dir))
-        normalized_exclude_dirs.append(os.path.normpath(exclude_dir))
+    for d in exclude_dirs:
+        if not os.path.isabs(d):
+            d = os.path.join(base_dir, d)
+        normalized_exclude_dirs.append(os.path.normpath(d).rstrip(os.sep))
 
-    # 使用生成器表达式提高内存效率
     file_paths = []
-    for root, dirs, files in os.walk(directory):
-        # 检查当前目录是否在排除列表中
-        current_dir_abs = os.path.abspath(root)
-        if any(os.path.samefile(current_dir_abs, exclude_dir) for exclude_dir in normalized_exclude_dirs):
-            # 跳过排除目录及其所有子目录
-            dirs[:] = []
-            continue
 
-        # 检查当前目录的父目录是否在排除列表中（防止遍历到排除目录的子目录）
-        for exclude_dir in normalized_exclude_dirs:
-            if current_dir_abs.startswith(exclude_dir + os.sep):
-                dirs[:] = []
+    # ---------- 递归模式 ----------
+    if recursive:
+        for root, dirs, files in os.walk(base_dir):
+            current_dir = os.path.normpath(root)
+
+            # 排除目录逻辑（前缀匹配，避免 samefile 带来的异常）
+            skip = False
+            for ex in normalized_exclude_dirs:
+                if current_dir == ex or current_dir.startswith(ex + os.sep):
+                    skip = True
+                    break
+
+            if skip:
+                dirs[:] = []  # 不再进入子目录
                 continue
 
-        # 收集匹配的文件
-        for file in files:
-            if any(file.endswith(ext) for ext in extensions):
-                file_paths.append(os.path.join(root, file))
+            for file in files:
+                if extensions is None:
+                    file_paths.append(os.path.join(root, file))
+                else:
+                    # 文件名统一转小写，防止大小写扩展名漏匹配
+                    file_lower = file.lower()
+                    if any(file_lower.endswith(ext) for ext in extensions):
+                        file_paths.append(os.path.join(root, file))
 
-    # 返回排序后的列表以便可预测的顺序
+    # ---------- 非递归模式 ----------
+    else:
+        for name in os.listdir(base_dir):
+            path = os.path.join(base_dir, name)
+
+            # 如果是目录，检查是否在排除列表中
+            if os.path.isdir(path):
+                norm_path = os.path.normpath(path)
+                if any(
+                        norm_path == ex or norm_path.startswith(ex + os.sep)
+                        for ex in normalized_exclude_dirs
+                ):
+                    continue
+                continue
+
+            # 只处理文件
+            if os.path.isfile(path):
+                if extensions is None:
+                    file_paths.append(path)
+                else:
+                    name_lower = name.lower()
+                    if any(name_lower.endswith(ext) for ext in extensions):
+                        file_paths.append(path)
+
     return sorted(file_paths)
 
 
-def get_filenames(directory: str, extensions: Union[str, List[str]] = '.jpg',
-                  exclude_dirs: Union[str, List[str]] = None) -> List[str]:
+def get_filenames(
+        directory: str,
+        extensions: Union[str, List[str]] = '.jpg',
+        exclude_dirs: Union[str, List[str]] = None,
+        recursive: bool = True
+) -> List[str]:
     """
     查找指定目录下所有匹配给定扩展名的文件名（不包含路径）
 
     Args:
         directory: 要搜索的目录路径
-        extensions: 要匹配的文件扩展名，可以是单个字符串（如 '.jpg'）或列表（如 ['.jpg', '.png']）
-        exclude_dirs: 要排除的目录名，可以是单个字符串或列表（支持相对路径或绝对路径）
+        extensions: 要匹配的文件扩展名
+        exclude_dirs: 要排除的目录
+        recursive: 是否递归子目录（默认 True）
 
     Returns:
-        匹配文件的文件名列表（按字母顺序排序）
-
-    Example:
-        >>> # 查找所有jpg文件名
-        >>> jpg_files = get_filenames('./images', '.jpg')
-        >>> print(f"找到 {len(jpg_files)} 个JPG文件")
-        >>> # 输出示例: ['cat.jpg', 'dog.jpg']
+        文件名列表（按字母顺序排序）
     """
-    # 参数验证（与原函数相同）
-    if not os.path.isdir(directory):
-        raise ValueError(f"无效的目录路径: {directory}")
 
-    if not isinstance(extensions, (str, list)):
-        raise TypeError("扩展名参数必须是字符串或列表")
+    file_paths = get_files(
+        directory=directory,
+        extensions=extensions,
+        exclude_dirs=exclude_dirs,
+        recursive=recursive
+    )
 
-    if exclude_dirs is None:
-        exclude_dirs = []
-    elif isinstance(exclude_dirs, str):
-        exclude_dirs = [exclude_dirs]
-    elif not isinstance(exclude_dirs, list):
-        raise TypeError("排除目录参数必须是字符串、列表或None")
-
-    # 统一处理扩展名格式
-    if isinstance(extensions, str):
-        extensions = [extensions]
-    extensions = [ext if ext.startswith('.') else f'.{ext}' for ext in extensions]
-
-    # 规范化排除目录路径
-    normalized_exclude_dirs = []
-    for exclude_dir in exclude_dirs:
-        if not os.path.isabs(exclude_dir):
-            exclude_dir = os.path.abspath(os.path.join(directory, exclude_dir))
-        normalized_exclude_dirs.append(os.path.normpath(exclude_dir))
-
-    # 收集文件名（不包含路径）
-    file_names = []
-    for root, dirs, files in os.walk(directory):
-        # 检查是否在排除目录中
-        current_dir_abs = os.path.abspath(root)
-        if any(os.path.samefile(current_dir_abs, exclude_dir) for exclude_dir in normalized_exclude_dirs):
-            dirs[:] = []
-            continue
-
-        # 检查父目录是否在排除列表中
-        for exclude_dir in normalized_exclude_dirs:
-            if current_dir_abs.startswith(exclude_dir + os.sep):
-                dirs[:] = []
-                continue
-
-        # 收集匹配的文件名
-        for file in files:
-            if any(file.lower().endswith(ext.lower()) for ext in extensions):
-                file_names.append(file)  # 只添加文件名，不包含路径
-
-    return sorted(file_names)
+    return sorted(os.path.basename(p) for p in file_paths)
 
 
 def get_duplicate_files(source_dir: str, compare_dir: str) -> List[str]:
@@ -201,6 +213,7 @@ def get_duplicate_files(source_dir: str, compare_dir: str) -> List[str]:
             duplicate_files.append(file_path)
 
     return duplicate_files
+
 
 def generate_sequential_filename(file_path):
     """
@@ -402,7 +415,9 @@ def copy_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
 
     Args:
         file_list: 文件路径列表
-        destination_dir: 目标目录
+        destination_dir: 目标目录或目标路径列表
+            - 字符串: 所有文件保存到该目录
+            - 列表: 每个文件对应的完整目标路径，长度必须与file_list一致
         overwrite: 是否覆盖已存在的目标文件
         rename_if_exists: 当目标文件已存在时是否重命名
         create_subdirs: 是否在目标目录中保持源文件的目录结构
@@ -423,10 +438,16 @@ def copy_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
     import time
     start_time = time.time()
 
+    # 检查destination_dir是否为列表
+    is_dest_list = isinstance(destination_dir, list)
+    if is_dest_list:
+        if len(destination_dir) != len(file_list):
+            raise ValueError("destination_dir列表长度必须与file_list一致")
+
     write_log(f"\n{'=' * 50}")
     write_log(f"开始批量拷贝: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     write_log(f"源文件数量: {len(file_list)}")
-    write_log(f"目标目录: {destination_dir}")
+    write_log(f"目标目录: {destination_dir if not is_dest_list else '多个目标路径'}")
     write_log(f"覆盖模式: {overwrite}")
     write_log(f"重命名模式: {rename_if_exists}")
     write_log(f"保持目录结构: {create_subdirs}")
@@ -439,15 +460,21 @@ def copy_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
                 failed_copies.append((source_path, "源文件不存在"))
                 continue
 
-            if create_subdirs:
-                if len(file_list) > 1:
-                    common_path = os.path.commonpath([os.path.dirname(f) for f in file_list])
-                    rel_path = os.path.relpath(source_path, common_path)
-                else:
-                    rel_path = os.path.basename(source_path)
-                dest_path = os.path.join(destination_dir, rel_path)
+            # 确定目标路径
+            if is_dest_list:
+                # 使用对应索引的目标路径
+                dest_path = destination_dir[i - 1]
             else:
-                dest_path = os.path.join(destination_dir, os.path.basename(source_path))
+                # 传统方式：使用目标目录
+                if create_subdirs:
+                    if len(file_list) > 1:
+                        common_path = os.path.commonpath([os.path.dirname(f) for f in file_list])
+                        rel_path = os.path.relpath(source_path, common_path)
+                    else:
+                        rel_path = os.path.basename(source_path)
+                    dest_path = os.path.join(destination_dir, rel_path)
+                else:
+                    dest_path = os.path.join(destination_dir, os.path.basename(source_path))
 
             write_log(f"[{i}/{len(file_list)}] 正在拷贝: {source_path}")
             copied_path = copy_file(source_path, dest_path, overwrite=overwrite,
@@ -491,7 +518,9 @@ def move_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
 
     Args:
         file_list: 文件路径列表
-        destination_dir: 目标目录
+        destination_dir: 目标目录或目标路径列表
+            - 字符串: 所有文件保存到该目录
+            - 列表: 每个文件对应的完整目标路径，长度必须与file_list一致
         overwrite: 是否覆盖已存在的目标文件
         rename_if_exists: 当目标文件已存在时是否重命名
         create_subdirs: 是否在目标目录中保持源文件的目录结构
@@ -512,10 +541,16 @@ def move_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
     import time
     start_time = time.time()
 
+    # 检查destination_dir是否为列表
+    is_dest_list = isinstance(destination_dir, list)
+    if is_dest_list:
+        if len(destination_dir) != len(file_list):
+            raise ValueError("destination_dir列表长度必须与file_list一致")
+
     write_log(f"\n{'=' * 50}")
     write_log(f"开始批量移动: {time.strftime('%Y-%m-%d %H:%M:%S')}")
     write_log(f"源文件数量: {len(file_list)}")
-    write_log(f"目标目录: {destination_dir}")
+    write_log(f"目标目录: {destination_dir if not is_dest_list else '多个目标路径'}")
     write_log(f"覆盖模式: {overwrite}")
     write_log(f"重命名模式: {rename_if_exists}")
     write_log(f"保持目录结构: {create_subdirs}")
@@ -528,15 +563,21 @@ def move_files(file_list, destination_dir, overwrite=False, rename_if_exists=Fal
                 failed_moves.append((source_path, "源文件不存在"))
                 continue
 
-            if create_subdirs:
-                if len(file_list) > 1:
-                    common_path = os.path.commonpath([os.path.dirname(f) for f in file_list])
-                    rel_path = os.path.relpath(source_path, common_path)
-                else:
-                    rel_path = os.path.basename(source_path)
-                dest_path = os.path.join(destination_dir, rel_path)
+            # 确定目标路径
+            if is_dest_list:
+                # 使用对应索引的目标路径
+                dest_path = destination_dir[i - 1]
             else:
-                dest_path = os.path.join(destination_dir, os.path.basename(source_path))
+                # 传统方式：使用目标目录
+                if create_subdirs:
+                    if len(file_list) > 1:
+                        common_path = os.path.commonpath([os.path.dirname(f) for f in file_list])
+                        rel_path = os.path.relpath(source_path, common_path)
+                    else:
+                        rel_path = os.path.basename(source_path)
+                    dest_path = os.path.join(destination_dir, rel_path)
+                else:
+                    dest_path = os.path.join(destination_dir, os.path.basename(source_path))
 
             write_log(f"[{i}/{len(file_list)}] 正在移动: {source_path}")
             moved_path = move_file(source_path, dest_path, overwrite=overwrite,
@@ -676,10 +717,11 @@ def randomly_select_files(source_dir: str, file_ext: str = '.jpg', distribution:
         >>>     print(f"已复制 {count} 个文件到 {dest_path}")
     """
     import random
-    
+    import logging
+
     # 设置日志记录器，用于记录函数执行过程中的信息
-    logger = set_logging("randomly_select_files", verbose=verbose)
-    
+    logger = logging.getLogger("randomly_select_files")
+
     # 获取源文件路径列表
     # get_files 函数会递归搜索目录，返回所有匹配扩展名的文件路径
     source_files = get_files(source_dir, file_ext)
@@ -692,18 +734,19 @@ def randomly_select_files(source_dir: str, file_ext: str = '.jpg', distribution:
     # 计算需要抽取的文件总数
     # distribution 是一个列表，sum 函数计算列表中所有元素的和
     total_files_needed = sum(distribution)
-    
+
     # 随机抽样
     # random.sample 从源文件中随机抽取指定数量的文件，确保不重复
     # 如果 total_files_needed 超过 source_files 的长度，会引发 IndexError
     random_files = random.sample(source_files, total_files_needed)
-    
+
     # 打乱文件顺序
     # shuffle 函数会原地打乱列表顺序，增加随机性
     # 这样可以确保分配给不同目标目录的文件是完全随机的
     random.shuffle(random_files)
-    
+
     return random_files
+
 
 def clean_unmatched_files(folder_path, img_exts=None, label_ext=None, delete_images=True, delete_labels=True, dry_run=True):
     """

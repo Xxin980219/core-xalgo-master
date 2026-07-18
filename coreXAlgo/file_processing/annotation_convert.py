@@ -10,9 +10,10 @@ except ImportError:
     from typing import List, Dict, Tuple, Optional, Union
     from typing_extensions import TypedDict
 
+import logging
 from lxml import etree
 
-from ..utils.basic import set_logging
+from ..utils.constants import IMAGE_TYPE_FORMAT
 
 
 # 自定义异常类
@@ -124,7 +125,8 @@ class YOLOAnnotation:
             verbose: 是否启用详细日志
         """
         self.class_names: List[str] = class_names
-        self.logger = set_logging("YOLOAnnotation", verbose=verbose)
+        self.logger = logging.getLogger("YOLOAnnotation")
+        self.verbose = verbose
         self.annotations: List[Tuple[int, List[float]]] = []
 
     def add_annotation(self, class_id: int, normalized_points: List[float]) -> None:
@@ -195,6 +197,243 @@ class YOLOAnnotation:
         self.logger.info(f"YOLO 标签保存成功: {txt_path}")
 
 
+class COCOAnnotation:
+    """
+    COCO格式标注处理类
+
+    用于创建、管理和保存COCO格式的标注数据。
+    COCO格式支持目标检测、实例分割、关键点检测等任务。
+
+    COCO格式结构:
+    {
+        "info": {...},
+        "images": [...],
+        "annotations": [...],
+        "categories": [...]
+    }
+
+    Args:
+        info (Dict): 数据集信息
+        images (List[Dict]): 图像列表
+        annotations (List[Dict]): 标注列表
+        categories (List[Dict]): 类别列表
+
+    Example:
+        >>> # 初始化COCO标注器
+        >>> coco = COCOAnnotation(['person', 'car', 'dog'])
+        >>>
+        >>> # 添加图像
+        >>> coco.add_image('001.jpg', 640, 480)
+        >>>
+        >>> # 添加实例分割标注
+        >>> polygon = [[100, 100], [200, 100], [200, 200], [100, 200]]
+        >>> coco.add_annotation(1, polygon, 0)
+        >>>
+        >>> # 保存为COCO JSON文件
+        >>> coco.save('annotations.json')
+    """
+
+    def __init__(self, class_names: List[str], verbose: bool = False):
+        """
+        初始化COCO标注器
+
+        Args:
+            class_names: 类别名称列表，列表索引+1将作为category_id使用
+            verbose: 是否启用详细日志
+        """
+        self.info = {
+            "description": "COCO Format Annotations",
+            "version": "1.0",
+            "year": 2024,
+            "contributor": "coreXAlgo",
+            "date_created": ""
+        }
+        self.images = []
+        self.annotations = []
+        self.categories = []
+        self.class_names = class_names
+        self.image_id_counter = 1
+        self.annotation_id_counter = 1
+        self.verbose = verbose
+        self.logger = logging.getLogger("COCOAnnotation")
+        self.verbose = verbose
+        self._init_categories()
+
+    def _init_categories(self):
+        """初始化类别列表"""
+        for idx, name in enumerate(self.class_names):
+            self.categories.append({
+                "id": idx + 1,
+                "name": name,
+                "supercategory": "none"
+            })
+
+    def add_image(self, file_name: str, width: int, height: int, image_id: int = None) -> int:
+        """
+        添加图像信息
+
+        Args:
+            file_name: 图像文件名
+            width: 图像宽度
+            height: 图像高度
+            image_id: 图像ID（可选，默认自动递增）
+
+        Returns:
+            int: 分配的图像ID
+        """
+        if image_id is None:
+            image_id = self.image_id_counter
+            self.image_id_counter += 1
+        
+        self.images.append({
+            "id": image_id,
+            "file_name": file_name,
+            "width": width,
+            "height": height
+        })
+        
+        if self.verbose:
+            self.logger.debug(f"添加图像: {file_name} (ID: {image_id})")
+        
+        return image_id
+
+    def add_annotation(self, image_id: int, points: List[List[float]], category_id: int, 
+                       annotation_id: int = None) -> int:
+        """
+        添加实例分割标注
+
+        Args:
+            image_id: 所属图像ID
+            points: 多边形坐标点列表 [[x1,y1], [x2,y2], ...]
+            category_id: 类别ID（从1开始）
+            annotation_id: 标注ID（可选，默认自动递增）
+
+        Returns:
+            int: 分配的标注ID
+
+        Raises:
+            ValueError: 当点数不足或坐标无效时
+        """
+        if len(points) < 3:
+            raise ValueError("多边形至少需要3个点")
+        
+        if annotation_id is None:
+            annotation_id = self.annotation_id_counter
+            self.annotation_id_counter += 1
+
+        # 计算边界框
+        points_array = np.array(points, dtype=float)
+        x_min, y_min = points_array.min(axis=0)
+        x_max, y_max = points_array.max(axis=0)
+        bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+        
+        # 计算面积（使用鞋带公式）
+        area = self._polygon_area(points)
+
+        # 转换为COCO格式的segmentation
+        segmentation = [coord for point in points for coord in point]
+
+        self.annotations.append({
+            "id": annotation_id,
+            "image_id": image_id,
+            "category_id": category_id,
+            "segmentation": [segmentation],
+            "area": area,
+            "bbox": bbox,
+            "iscrowd": 0
+        })
+        
+        if self.verbose:
+            self.logger.debug(f"添加标注: image_id={image_id}, category_id={category_id}, area={area}")
+        
+        return annotation_id
+
+    def _polygon_area(self, points: List[List[float]]) -> float:
+        """
+        使用鞋带公式计算多边形面积
+
+        Args:
+            points: 多边形坐标点列表
+
+        Returns:
+            float: 多边形面积
+        """
+        n = len(points)
+        area = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            area += points[i][0] * points[j][1]
+            area -= points[j][0] * points[i][1]
+        return abs(area / 2.0)
+
+    def add_object_detection_annotation(self, image_id: int, bbox: List[float], 
+                                        category_id: int, annotation_id: int = None) -> int:
+        """
+        添加目标检测标注（仅边界框）
+
+        Args:
+            image_id: 所属图像ID
+            bbox: 边界框 [x_min, y_min, width, height]
+            category_id: 类别ID（从1开始）
+            annotation_id: 标注ID（可选，默认自动递增）
+
+        Returns:
+            int: 分配的标注ID
+        """
+        if len(bbox) != 4:
+            raise ValueError("边界框必须包含4个元素: [x_min, y_min, width, height]")
+        
+        if annotation_id is None:
+            annotation_id = self.annotation_id_counter
+            self.annotation_id_counter += 1
+
+        area = bbox[2] * bbox[3]
+
+        self.annotations.append({
+            "id": annotation_id,
+            "image_id": image_id,
+            "category_id": category_id,
+            "segmentation": [],
+            "area": area,
+            "bbox": bbox,
+            "iscrowd": 0
+        })
+        
+        if self.verbose:
+            self.logger.debug(f"添加目标检测标注: image_id={image_id}, category_id={category_id}")
+        
+        return annotation_id
+
+    def to_dict(self) -> Dict:
+        """
+        转换为COCO格式的字典
+
+        Returns:
+            Dict: COCO格式的字典数据
+        """
+        return {
+            "info": self.info,
+            "images": self.images,
+            "annotations": self.annotations,
+            "categories": self.categories
+        }
+
+    def save(self, json_path: str) -> None:
+        """
+        保存为COCO JSON文件
+
+        Args:
+            json_path: 输出JSON文件路径
+        """
+        output_path = Path(json_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
+        
+        self.logger.info(f"COCO标注保存成功: {json_path}")
+
+
 class LabelMeAnnotation:
     """
     LabelMe JSON 标注格式处理类
@@ -256,7 +495,7 @@ class LabelMeAnnotation:
         self.imageHeight: int
         self.imageWidth: int
         self.imageHeight, self.imageWidth = image_size
-        self.logger = set_logging("LabelMeAnnotation", verbose=verbose)
+        self.logger = logging.getLogger("LabelMeAnnotation")
 
     def add_shape(self, label: str, points: List[List[float]], shape_type: str = "polygon") -> None:
         """
@@ -514,6 +753,25 @@ class VOCAnnotation:
 
         # 添加已有对象
         for obj in self.objects:
+            # 防止边界框越界
+            xmin, ymin, xmax, ymax = obj.bbox
+            
+            # 确保坐标在有效范围内
+            xmin = max(1, min(xmin, self.image_width))
+            ymin = max(1, min(ymin, self.image_height))
+            xmax = max(1, min(xmax, self.image_width))
+            ymax = max(1, min(ymax, self.image_height))
+            
+            # 检查坐标有效性
+            if xmin >= xmax or ymin >= ymax:
+                raise ValueError(f"无效的边界框坐标: [{xmin}, {ymin}, {xmax}, {ymax}]，xmin必须小于xmax，ymin必须小于ymax")
+            
+            # 更新对象的边界框
+            obj.bbox = [xmin, ymin, xmax, ymax]
+            # 重新构建XML结构
+            obj.root = etree.Element("object")
+            obj._build_xml_structure()
+            
             self.root.append(obj.to_element())
 
     def add_object(self, name: str, bbox: List[float], difficult: int = 0):
@@ -532,14 +790,30 @@ class VOCAnnotation:
             >>> # 添加困难样本
             >>> annotator.add_object("occluded_car", [300, 200, 450, 300], difficult=1)
         """
-        new_obj = VOCObject(name, bbox, difficult)
+        # 防止边界框越界
+        xmin, ymin, xmax, ymax = bbox
+        
+        # 确保坐标在有效范围内
+        xmin = max(1, min(xmin, self.image_width))
+        ymin = max(1, min(ymin, self.image_height))
+        xmax = max(1, min(xmax, self.image_width))
+        ymax = max(1, min(ymax, self.image_height))
+        
+        # 检查坐标有效性
+        if xmin >= xmax or ymin >= ymax:
+            raise ValueError(f"无效的边界框坐标: [{xmin}, {ymin}, {xmax}, {ymax}]，xmin必须小于xmax，ymin必须小于ymax")
+        
+        # 创建新的边界框
+        adjusted_bbox = [xmin, ymin, xmax, ymax]
+        
+        new_obj = VOCObject(name, adjusted_bbox, difficult)
         self.objects.append(new_obj)
         self.root.append(new_obj.to_element())
         if self.verbose:
             if not hasattr(self, 'logger'):
-                from ..utils.basic import set_logging
-                self.logger = set_logging("VOCAnnotation", verbose=self.verbose)
-            self.logger.info(f"Added object: {name} {bbox}")
+                import logging
+                self.logger = logging.getLogger("VOCAnnotation")
+            self.logger.info(f"Added object: {name} {adjusted_bbox}")
 
     def save(self, xml_path: str):
         """
@@ -572,8 +846,8 @@ class VOCAnnotation:
 
         if self.verbose:
             if not hasattr(self, 'logger'):
-                from ..utils.basic import set_logging
-                self.logger = set_logging("VOCAnnotation", verbose=self.verbose)
+                import logging
+                self.logger = logging.getLogger("VOCAnnotation")
             self.logger.info(f"XML saved to: {output_path.resolve()}")
 
     def __str__(self):
@@ -639,8 +913,59 @@ class AnnotationConverter:
         self.class_names = class_names if class_names else ["object"]
         self.class_mapping = class_mapping if class_mapping else {}
         self.verbose = verbose
-        self.logger = set_logging("AnnotationConverter", verbose=self.verbose)
+        self.logger = logging.getLogger("AnnotationConverter")
         self._image_size_cache = {}  # 图像尺寸缓存
+
+    def extract_classes_from_labelme(self, json_files: List[str]) -> List[str]:
+        """
+        从多个LabelMe文件中自动提取所有标签类别
+
+        Args:
+            json_files: LabelMe JSON文件路径列表
+
+        Returns:
+            List[str]: 提取到的类别名称列表（按字母顺序排序）
+
+        Raises:
+            FileError: 当文件不存在或无法读取时
+            FormatError: 当JSON格式无效时
+
+        Example:
+            >>> # 提取类别
+            >>> json_files = ['labelme/001.json', 'labelme/002.json']
+            >>> classes = converter.extract_classes_from_labelme(json_files)
+            >>> print(classes)
+            >>> # 输出: ['car', 'person', 'dog']
+        """
+        classes = set()
+        
+        for json_file in json_files:
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    
+                for shape in data.get('shapes', []):
+                    label = shape.get('label', '')
+                    if label:
+                        # 应用标签映射
+                        mapped_label = self.class_mapping.get(label, label)
+                        classes.add(mapped_label)
+                        
+            except FileNotFoundError:
+                raise FileError(f"文件不存在: {json_file}")
+            except json.JSONDecodeError:
+                raise FormatError(f"无效的JSON格式: {json_file}")
+            except Exception as e:
+                if self.verbose:
+                    self.logger.warning(f"处理文件失败 {json_file}: {e}")
+                continue
+
+        result = sorted(list(classes))
+        
+        if self.verbose:
+            self.logger.info(f"从 {len(json_files)} 个文件中提取到 {len(result)} 个类别: {result}")
+        
+        return result
 
     def _get_image_size(self, image_path: str) -> tuple:
         """
@@ -1736,6 +2061,131 @@ class AnnotationConverter:
         yolo_ann.save(str(output_path))
         return str(output_path)
 
+    def labelme_to_coco(self, json_files: List[str], output_path: str = None) -> str:
+        """
+        多个LabelMe JSON文件 → COCO格式
+
+        将多个LabelMe格式的JSON标注文件转换为一个统一的COCO格式JSON文件。
+        支持实例分割和目标检测标注。
+
+        Args:
+            json_files: LabelMe JSON文件路径列表
+            output_path: 输出COCO JSON文件路径（默认为输入文件所在目录的coco_annotations.json）
+
+        Returns:
+            str: 生成的COCO JSON文件路径
+
+        Raises:
+            FileError: 当JSON文件不存在或无法读取时
+            FormatError: 当JSON格式无效时
+            ValueError: 当输入文件列表为空时
+
+        Example:
+            >>> # 转换多个LabelMe文件到COCO格式
+            >>> json_files = ['labelme/001.json', 'labelme/002.json', 'labelme/003.json']
+            >>> converter.labelme_to_coco(json_files, 'annotations/coco.json')
+            >>> # 输出: 'annotations/coco.json'
+            >>>
+            >>> # 使用默认输出路径
+            >>> converter.labelme_to_coco(json_files)
+            >>> # 输出: 'labelme/coco_annotations.json'
+        """
+        if not json_files:
+            raise ValueError("输入文件列表不能为空")
+
+        # 确定输出路径
+        if output_path is None:
+            first_file = Path(json_files[0])
+            output_path = str(first_file.parent / "coco_annotations.json")
+        
+        output_path_obj = Path(output_path)
+        output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+
+        # 初始化COCO标注器
+        coco = COCOAnnotation(self.class_names, verbose=self.verbose)
+
+        # 处理每个LabelMe JSON文件
+        for json_file in json_files:
+            try:
+                with open(json_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+            except FileNotFoundError:
+                raise FileError(f"JSON文件不存在: {json_file}")
+            except json.JSONDecodeError:
+                raise FormatError(f"无效的JSON格式: {json_file}")
+
+            # 获取图像信息
+            image_path = data.get('imagePath', '')
+            image_width = data.get('imageWidth', 0)
+            image_height = data.get('imageHeight', 0)
+
+            if not image_path:
+                if self.verbose:
+                    self.logger.warning(f"跳过缺少imagePath的文件: {json_file}")
+                continue
+
+            if image_width <= 0 or image_height <= 0:
+                if self.verbose:
+                    self.logger.warning(f"跳过图像尺寸无效的文件: {json_file}")
+                continue
+
+            # 添加图像到COCO
+            image_id = coco.add_image(image_path, image_width, image_height)
+
+            # 处理每个形状
+            for shape in data.get('shapes', []):
+                label = shape.get('label', '')
+                
+                # 应用标签映射
+                mapped_label = self.class_mapping.get(label, label)
+                
+                if mapped_label not in self.class_names:
+                    if self.verbose:
+                        if mapped_label != label:
+                            self.logger.warning(f"跳过未知标签 '{label}' (映射为 '{mapped_label}')")
+                        else:
+                            self.logger.warning(f"跳过未知标签 '{label}'")
+                    continue
+
+                category_id = self.class_names.index(mapped_label) + 1  # COCO类别ID从1开始
+                points = shape.get('points', [])
+                shape_type = shape.get('shape_type', 'polygon')
+
+                if len(points) < 2:
+                    if self.verbose:
+                        self.logger.warning(f"跳过点数不足的标注: {label}")
+                    continue
+
+                try:
+                    if shape_type == 'rectangle':
+                        # 矩形转换为边界框
+                        points_array = np.array(points, dtype=float)
+                        x_min, y_min = points_array.min(axis=0)
+                        x_max, y_max = points_array.max(axis=0)
+                        bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+                        coco.add_object_detection_annotation(image_id, bbox, category_id)
+                    else:
+                        # 其他形状作为多边形处理（需要至少3个点）
+                        if len(points) >= 3:
+                            coco.add_annotation(image_id, points, category_id)
+                        else:
+                            # 对于点或线，转换为边界框
+                            points_array = np.array(points, dtype=float)
+                            x_min, y_min = points_array.min(axis=0)
+                            x_max, y_max = points_array.max(axis=0)
+                            bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+                            coco.add_object_detection_annotation(image_id, bbox, category_id)
+                except Exception as e:
+                    if self.verbose:
+                        self.logger.error(f"处理标注失败 ({label}): {e}")
+                    continue
+
+        # 保存COCO标注
+        coco.save(output_path)
+        self.logger.info(f"成功将 {len(json_files)} 个LabelMe文件转换为COCO格式: {output_path}")
+        
+        return output_path
+
     def cvat_to_yolo_seg(self, xml_path: str, output_dir: str = None) -> str:
         """
         CVAT多边形标注 → YOLO分割格式
@@ -1783,6 +2233,7 @@ class AnnotationConverter:
                 - "labelme_to_yolo_seg": LabelMe → YOLO分割
                 - "labelme_to_yolo_obj": LabelMe → YOLO目标检测
                 - "labelme_to_voc": LabelMe → VOC
+                - "labelme_to_coco": LabelMe → COCO（多个JSON文件合并为一个COCO JSON）
                 - "yolo_seg_to_labelme": YOLO分割 → LabelMe
                 - "yolo_obj_to_labelme": YOLO目标检测 → LabelMe
                 - "yolo_obj_to_voc": YOLO目标检测 → VOC
@@ -1820,6 +2271,7 @@ class AnnotationConverter:
             "labelme_to_yolo_seg": self.labelme_to_yolo_seg,
             "labelme_to_yolo_obj": self.labelme_to_yolo_obj,
             "labelme_to_voc": self.labelme_to_voc,
+            "labelme_to_coco": self.labelme_to_coco,
             "yolo_seg_to_labelme": self.yolo_seg_to_labelme,
             "yolo_obj_to_labelme": self.yolo_obj_to_labelme,
             "yolo_obj_to_voc": self.yolo_obj_to_voc,
@@ -1838,6 +2290,20 @@ class AnnotationConverter:
         img_paths = kwargs.get('img_path', [])
         if img_paths and len(img_paths) != len(input_files):
             raise ValueError("图像路径列表长度必须与输入文件列表长度一致")
+
+        # 特殊处理labelme_to_coco：它接收文件列表而不是单个文件
+        if conversion_type == "labelme_to_coco":
+            try:
+                output_file = method(input_files, kwargs.get('output_path'))
+                output_files.append(output_file)
+                if self.verbose:
+                    self.logger.info(f"成功将 {len(input_files)} 个LabelMe文件转换为COCO格式: {output_file}")
+                return output_files
+            except Exception as e:
+                error_msg = f"转换LabelMe到COCO失败: {e}"
+                if self.verbose:
+                    self.logger.error(error_msg)
+                raise AnnotationError(error_msg)
 
         # 内存优化：使用迭代器处理文件，避免一次性加载所有文件
         for i, input_file in enumerate(input_files):

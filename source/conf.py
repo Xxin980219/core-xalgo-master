@@ -26,19 +26,19 @@ author = 'Xiong xin'
 
 # Version information
 try:
-    from coreXAlgo import __version__
+    from version import __version__
     version = __version__
     release = __version__
 except ImportError:
     version = 'latest'
     release = 'latest'
 
+print(version)
 # -- General configuration ---------------------------------------------
 
 # Mock imports to avoid dependency issues during documentation build
 autodoc_mock_imports = [
     "pymysql", 
-    "torch", 
     "cv2", 
     "numpy", 
     "tqdm", 

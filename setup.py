@@ -24,6 +24,23 @@ def read_requirements():
         return [line.strip() for line in f if line.strip()]
 
 
+# 核心依赖包
+core_dependencies = [
+    'numpy>=1.20.0',
+    'opencv-python>=4.5.0',
+    'lxml>=4.6.0',
+    'tqdm>=4.53.0',
+    'PyYAML>=6.0',
+    'paramiko>=3.0.0',
+    'pandas>=1.3.0',
+    'sqlalchemy>=1.3.0',
+    'matplotlib>=3.3.0',
+]
+
+# 合并所有依赖
+# all_dependencies = core_dependencies + read_requirements()
+all_dependencies = core_dependencies
+
 setup(
     name="coreXAlgo",
     version=get_version(),
@@ -33,14 +50,25 @@ setup(
     # 重要：包含模型权重和其他资源文件
     package_data={},
 
-    install_requires=[],
-    # # YOLO的依赖项（根据requirements.txt调整）
-    # install_requires=read_requirements(),
+    # 依赖项
+    install_requires=all_dependencies,
 
     # 元数据
     author="Xiong Xin",
     author_email="",
-    description="coreXAlgo - CoreX Algorithm Library.",
+    description="coreXAlgo - CoreX Algorithm Library for computer vision and data processing.",
+    long_description="A comprehensive algorithm library for computer vision and data processing, providing tools for file processing, annotation conversion, image cropping, and more.",
     license="AGPL-3.0",
     python_requires=">=3.7",  # Python版本要求
+    classifiers=[
+        "Programming Language :: Python :: 3",
+        "Programming Language :: Python :: 3.7",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "License :: OSI Approved :: GNU Affero General Public License v3",
+        "Operating System :: OS Independent",
+        "Topic :: Scientific/Engineering :: Computer Vision",
+        "Topic :: Utilities"
+    ]
 )

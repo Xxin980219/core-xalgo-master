@@ -42,7 +42,7 @@ from typing import Optional, Union, List
 from enum import Enum
 from tqdm import tqdm
 
-from ..utils.basic import set_logging
+import logging
 
 
 class CompressionFormat(Enum):
@@ -95,7 +95,7 @@ class ArchiveManager:
             verbose (bool): 是否启用详细日志，默认为 False
         """
         self.verbose = verbose
-        self.logger = set_logging("ArchiveManager", verbose=verbose)
+        self.logger = logging.getLogger("ArchiveManager")
 
     def compress(self, source: str, output_path: str, 
                  format: Union[str, CompressionFormat] = CompressionFormat.ZIP,

@@ -1,12 +1,8 @@
 import json
-import logging
 import os
-import sys
 import pickle
+
 import yaml
-import random
-import torch
-import numpy as np
 from tqdm import tqdm
 
 
@@ -69,158 +65,6 @@ def colorstr(*input):
     # 构建颜色字符串
     color_codes = ''.join(COLORS[arg] for arg in args)
     return f"{color_codes}{string}{COLORS['end']}"
-
-
-def set_all_seed(seed: int):
-    """
-    设置所有随机数生成器的种子以确保结果可复现
-
-    Args:
-        seed (int): 随机种子值
-    """
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
-def set_logging(name="LOGGING_NAME", verbose=True):
-    """
-    配置并返回一个日志记录器
-
-    Args:
-        name (str): 日志记录器的名称
-        verbose (bool): 是否输出显示日志信息，默认为 True
-
-    Returns:
-        logging.Logger: 配置好的日志记录器实例
-
-    Example:
-        >>> # 创建和使用日志记录器（输出显示）
-        >>> logger = set_logging("my_app", verbose=True)
-        >>> logger.info("Application started")  # 会输出到控制台
-
-        >>> # 创建和使用日志记录器（不输出显示）
-        >>> logger = set_logging("my_app", verbose=False)
-        >>> logger.info("Application started")  # 不会输出到控制台
-
-        >>> # 在不同模块中使用
-        >>> # module1.py
-        >>> logger1 = set_logging("module1", verbose=True)
-        >>>
-        >>> # module2.py
-        >>> logger2 = set_logging("module2", verbose=False)
-    """
-    level = logging.INFO
-    formatter = logging.Formatter("%(message)s")  # Default formatter
-
-    # Create and configure the StreamHandler with the appropriate formatter and level
-    logger = logging.getLogger(name)
-    logger.setLevel(level)
-    # 只有在 verbose=True 时才添加 StreamHandler
-    if verbose:
-        stream_handler = logging.StreamHandler(sys.stdout)
-        stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(level)
-        logger.addHandler(stream_handler)
-
-    logger.propagate = False
-    return logger
-
-
-def print_gpu_memory(device=None, verbose=True):
-    """
-    打印当前GPU内存使用情况
-
-    Args:
-        device (int, optional): 指定GPU设备ID，默认为当前设备
-        verbose (bool): 是否打印详细信息
-
-    Returns:
-        dict: 包含内存使用统计的字典
-
-    Example:
-        >>> # 打印当前GPU内存使用情况
-        >>> print_gpu_memory()
-        >>>
-        >>> # 获取内存使用数据但不打印
-        >>> mem_stats = print_gpu_memory(verbose=False)
-        >>> print(f"Allocated: {mem_stats['allocated']:.2f} GB")
-    """
-    if device is not None:
-        torch.cuda.set_device(device)
-    allocated = torch.cuda.memory_allocated() / (1024 ** 3)
-    max_allocated = torch.cuda.max_memory_allocated() / (1024 ** 3)
-    reserved = torch.cuda.memory_reserved() / (1024 ** 3)
-    max_reserved = torch.cuda.max_memory_reserved() / (1024 ** 3)
-
-    if verbose:
-        device_name = torch.cuda.get_device_name()
-        print(f"\nGPU Memory Usage (Device: {device_name})")
-        print("-" * 40)
-        print(f"Allocated:\t{allocated:.2f} GB (Max: {max_allocated:.2f} GB)")
-        print(f"Reserved:\t{reserved:.2f} GB (Max: {max_reserved:.2f} GB)")
-        print("-" * 40)
-
-    return {
-        'allocated': allocated,
-        'max_allocated': max_allocated,
-        'reserved': reserved,
-        'max_reserved': max_reserved
-    }
-
-
-def check_cuda_available():
-    """
-    检查CUDA环境和GPU配置, 打印详细的CUDA和GPU信息，包括版本、可用性、设备信息等
-
-    Example:
-        >>> # 在程序开始时检查GPU环境
-        >>> check_cuda_available()
-        >>>
-        >>> # 在安装验证时使用
-        >>> if not torch.cuda.is_available():
-        >>>     check_cuda_available()
-        >>>     raise RuntimeError("CUDA not available")
-    """
-    print("-" * 60)
-    print('CUDA版本:', torch.version.cuda)
-    print('Pytorch版本:', torch.__version__)
-    print('显卡是否可用:', '可用' if (torch.cuda.is_available()) else '不可用')
-    print('显卡数量:', torch.cuda.device_count())
-    print('是否支持BF16数字格式:', '支持' if (torch.cuda.is_bf16_supported()) else '不支持')
-    print('当前显卡型号:', torch.cuda.get_device_name())
-    print('当前显卡的CUDA算力:', torch.cuda.get_device_capability())
-    print('当前显卡的总显存:', torch.cuda.get_device_properties(0).total_memory / 1024 / 1024 / 1024, 'GB')
-    print('是否支持TensorCore:', '支持' if (torch.cuda.get_device_properties(0).major >= 7) else '不支持')
-    print('当前显卡的显存使用率:',
-          torch.cuda.memory_allocated(0) / torch.cuda.get_device_properties(0).total_memory * 100, '%')
-    print("-" * 60)
-
-
-def set_gpu_visible(devices):
-    """
-    设置可见的GPU设备
-
-    通过环境变量控制哪些GPU设备对程序可见，必须在import torch之前调用。
-
-    Args:
-        devices: int or str
-            0 or '0,1,2,3'
-
-    Example:
-        >>> # 只使用第0号GPU
-        >>> set_gpu_visible(0)
-        >>>
-        >>> # 使用多块GPU
-        >>> set_gpu_visible('0,1,2')
-        >>>
-        >>> # 在分布式训练中设置
-        >>> set_gpu_visible(os.environ['LOCAL_RANK'])
-    """
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(devices)
 
 
 def obj_to_json(obj, json_path, ensure_ascii=True):
@@ -421,8 +265,3 @@ def thread_pool(func, items, workers):
             concurrent.futures.wait(futures)
 
     return failed_idxs
-
-
-if __name__ == '__main__':
-    print_gpu_memory()
-    check_cuda_available()

@@ -38,12 +38,14 @@ copy_file('source/file.txt', 'destination/file.txt')
 # 移动单个文件
 move_file('source/file.txt', 'destination/file.txt')
 
-# 批量复制文件
-file_pairs = [('source/file1.txt', 'dest/file1.txt'), ('source/file2.txt', 'dest/file2.txt')]
-copy_files(file_pairs)
+# 批量复制文件到目录
+source_files = ['source/file1.txt', 'source/file2.txt']
+success, failed = copy_files(source_files, 'destination/')
+print(f"成功复制 {len(success)} 个文件")
 
-# 批量移动文件
-move_files(file_pairs)
+# 批量移动文件到目录
+success, failed = move_files(source_files, 'destination/')
+print(f"成功移动 {len(success)} 个文件")
 ```
 
 ### 文件分析
@@ -52,14 +54,12 @@ move_files(file_pairs)
 from coreXAlgo.file_processing import get_duplicate_files, get_missing_files
 
 # 查找重复文件
-duplicates = get_duplicate_files('directory/')
-print(f"Found {len(duplicates)} duplicate files")
+duplicates = get_duplicate_files('source_dir/', 'compare_dir/')
+print(f"找到 {len(duplicates)} 个重复文件")
 
 # 查找缺失文件
-source_files = ['file1.txt', 'file2.txt', 'file3.txt']
-target_files = ['file1.txt', 'file3.txt']
-missing = get_missing_files(source_files, target_files)
-print(f"Missing files: {missing}")
+missing = get_missing_files('images/', 'annotations/', source_ext='.jpg', target_ext='.xml')
+print(f"缺失标签的图片: {missing}")
 ```
 
 ### 随机文件选择
@@ -117,9 +117,9 @@ clean_unmatched_files(
 ```python
 from coreXAlgo.file_processing import generate_sequential_filename
 
-# 生成顺序文件名
-filename = generate_sequential_filename('output/', 'image', '.jpg')
-print(f"Generated filename: {filename}")
+# 生成顺序文件名（如果文件已存在，自动添加序号）
+filename = generate_sequential_filename('output/image.jpg')
+print(f"生成的文件名: {filename}")
 ```
 
 ## API 参考

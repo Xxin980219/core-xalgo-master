@@ -5,14 +5,14 @@
 - 压缩文件管理（archive）
 - 标注格式转换（annotation_convert）
 - 图像裁剪（image_crop）
-- VOC XML处理（voc_xml_deal）
+- 标注文件处理（annotation_processor）
 - 数据预处理（data_preprocessing）
 """
 from .basic import *
 from .archive import CompressionFormat, ArchiveManager
 from .annotation_convert import *
 from .image_crop import *
-from .voc_xml_deal import *
+from .annotation_processor import *
 from .data_preprocessing import YOLODataPreprocessor, RotationType
 
 basic_all = [
@@ -48,7 +48,8 @@ image_crop_all = [
 ]
 
 voc_xml_deal_all = [
-    'VOCXMLProcessor'
+    'VOCXMLProcessor',
+    'YOLOTXTProcessor'
 ]
 
 data_preprocessing_all = [

@@ -7,8 +7,8 @@ from pathlib import Path
 import shutil
 import time
 from concurrent.futures import ThreadPoolExecutor
+import logging
 from typing import Optional, List, Dict, Any
-from ..utils.basic import set_logging
 from ..utils.constants import IMAGE_TYPE_FORMAT
 
 
@@ -43,7 +43,7 @@ class YOLODataPreprocessor:
             verbose: 是否启用详细日志
         """
         # 初始化日志记录器
-        self.logger = set_logging(name="YOLODataPreprocessor", verbose=verbose)
+        self.logger = logging.getLogger("YOLODataPreprocessor")
     
     def _rotate_image_and_labels(self, image_path: Path, txt_path: Path, rotation_type: str, backup_dir: Optional[Path] = None) -> bool:
         """
@@ -311,6 +311,7 @@ class YOLODataPreprocessor:
             self.logger.info(f"💾 原文件已备份到: {backup_dir}")
         self.logger.info("=" * 60)
 
+
     def batch_process(self, process_configs: List[Dict[str, Any]]) -> None:
         """
         批量处理多个数据集
@@ -385,11 +386,103 @@ class YOLODataPreprocessor:
         self.logger.info("批量处理完成")
         self.logger.info("=" * 60)
 
+    def rotate_all_subfolders(self, root_folder: str, rotation_type: str = RotationType.CLOCKWISE_90.value,
+                              ratio: float = 0.5, backup: bool = False, max_workers: int = 4,
+                              seed: Optional[int] = 42, skip_empty: bool = True) -> None:
+        """
+        递归遍历根目录下所有终极文件夹（没有子文件夹的文件夹），对每个文件夹执行旋转操作
+
+        Args:
+            root_folder: 根目录路径，会遍历其下所有子文件夹
+            rotation_type: 旋转类型，推荐使用RotationType枚举常量的value属性
+            ratio: 每个文件夹中文件的旋转比例 (0-1)
+            backup: 是否备份原文件
+            max_workers: 最大线程数
+            seed: 随机种子
+            skip_empty: 是否跳过没有图片文件的文件夹
+
+        Example:
+            >>> preprocessor = YOLODataPreprocessor()
+            >>> preprocessor.rotate_all_subfolders(
+            ...     root_folder=r"/data/datasets/all_ng",
+            ...     rotation_type=RotationType.CLOCKWISE_90.value,
+            ...     ratio=0.3,
+            ...     max_workers=12
+            ... )
+        """
+        self.logger.info("=" * 70)
+        self.logger.info("🚀 开始批量处理根目录下所有子文件夹")
+        self.logger.info("=" * 70)
+        self.logger.info(f"📂 根目录: {root_folder}")
+        self.logger.info(f"🔄 旋转类型: {rotation_type}度")
+        self.logger.info(f"🎯 旋转比例: {ratio * 100:.1f}%")
+        self.logger.info(f"🧵 最大线程数: {max_workers}")
+        self.logger.info("=" * 70)
+
+        root_path = Path(root_folder)
+        if not root_path.exists():
+            self.logger.error(f"❌ 根目录不存在: {root_folder}")
+            return
+
+        # 查找所有终极文件夹（没有子文件夹的文件夹）
+        leaf_folders = []
+        for folder_path in root_path.rglob("*"):
+            if folder_path.is_dir():
+                # 检查是否是终极文件夹：没有子文件夹
+                sub_dirs = [p for p in folder_path.iterdir() if p.is_dir()]
+                if not sub_dirs:
+                    leaf_folders.append(folder_path)
+
+        if not leaf_folders:
+            self.logger.error(f"❌ 在根目录下没有找到任何终极文件夹: {root_folder}")
+            return
+
+        self.logger.info(f"📁 找到 {len(leaf_folders)} 个终极文件夹")
+
+        # 构建配置列表
+        configs = []
+        skipped_count = 0
+
+        for folder in leaf_folders:
+            # 检查文件夹中是否有图片文件
+            if skip_empty:
+                has_images = any(
+                    f.is_file() and f.suffix.lower() in IMAGE_TYPE_FORMAT
+                    for f in folder.iterdir()
+                )
+                if not has_images:
+                    self.logger.info(f"⏭️ 跳过空文件夹: {folder}")
+                    skipped_count += 1
+                    continue
+
+            config = {
+                "image_folder": str(folder),
+                "label_folder": str(folder),
+                "rotation_type": rotation_type,
+                "ratio": ratio,
+                "backup": backup,
+                "max_workers": max_workers,
+                "seed": seed
+            }
+            configs.append(config)
+
+        if skipped_count > 0:
+            self.logger.info(f"⏭️ 跳过了 {skipped_count} 个空文件夹")
+
+        if not configs:
+            self.logger.warning("⚠️ 没有需要处理的文件夹")
+            return
+
+        self.logger.info(f"✅ 将处理 {len(configs)} 个文件夹")
+        self.logger.info("-" * 70)
+
+        # 调用已有的 batch_process 方法
+        self.batch_process(configs)
 
 # 主程序入口
 if __name__ == "__main__":
     # 示例用法
-    logger = set_logging(name="YOLODataPreprocessorExample", verbose=True)
+    logger = logging.getLogger(name="YOLODataPreprocessorExample")
     logger.info("=" * 60)
     logger.info("YOLO数据集旋转工具示例")
     logger.info("=" * 60)

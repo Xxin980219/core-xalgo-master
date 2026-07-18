@@ -7,7 +7,7 @@ from typing import Dict, Callable, Optional, List, Union, Tuple
 
 from tqdm import tqdm
 
-from .basic import set_logging
+import logging
 from .constants import TIMEOUT, RETRY_TIMES
 
 
@@ -76,7 +76,7 @@ class FTPClient:
         self._transports = {}  # 传输层池（用于高级连接管理）
         self._ftp = None
         self.ftp_name = None
-        self.logger = set_logging("FTPClient", verbose=verbose)
+        self.logger = logging.getLogger("FTPClient")
         self.max_connections = max_connections
         self._current_ftp_name = None
         self._lock = threading.RLock()  # 线程安全锁，支持递归调用

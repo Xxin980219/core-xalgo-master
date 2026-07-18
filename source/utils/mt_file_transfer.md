@@ -30,7 +30,7 @@
 ### 基本使用示例
 
 ```python
-from coreXAlgo.utils.mt_file_transfer import MTFileTransfer
+from coreXAlgo.utils.mt_file_transfer import MtFileDownloader
 
 # 配置FTP服务器信息
 file_config = {
@@ -49,7 +49,7 @@ file_config = {
 }
 
 # 创建传输器实例（初始化时直接传入服务器配置）
-transfer = MTFileTransfer(file_config, workers=4, verbose=True)
+transfer = MtFileDownloader(file_config, workers=4, verbose=True)
 
 # 下载整个目录到指定文件夹
 def progress_callback(percent):
@@ -88,7 +88,7 @@ print(f"成功下载: {success_count} 个文件")
 
 ```python
 # 创建更多线程的传输器实例（适用于网络带宽充足的情况）
-transfer = MTFileTransfer(file_config, workers=8, verbose=True)
+transfer = MtFileDownloader(file_config, workers=8, verbose=True)
 
 # 下载文件
 success_count = transfer.download_files_by_pathlist(
@@ -146,7 +146,7 @@ print(f"成功下载: {success_count} 个文件")
 
 ```python
 # 批量检查文件是否存在
-transfer = MTFileTransfer(file_config, workers=20, verbose=True)
+transfer = MtFileDownloader(file_config, workers=20, verbose=True)
 
 # 准备文件列表
 file_list = ["/remote/file1.txt", "/remote/file2.jpg", "/remote/file3.pdf"]
@@ -176,7 +176,7 @@ if existing_files:
 
 ```python
 # 多线程并行检查大量文件
-transfer = MTFileTransfer(file_config, workers=20, verbose=True)  # 20个线程
+transfer = MtFileDownloader(file_config, workers=20, verbose=True)  # 20个线程
 
 # 准备大量文件列表
 file_list = [f"/remote/file{i}.txt" for i in range(10000)]
@@ -197,7 +197,7 @@ print(f"文件检查完成: 存在 {len(existing_files)} 个文件，不存在 {
 
 ```python
 # 配置连接管理参数
-transfer = MTFileTransfer(file_config, workers=10, verbose=True)
+transfer = MtFileDownloader(file_config, workers=10, verbose=True)
 
 # 调整连接管理参数
 success_count = transfer.download_files_by_pathlist(
@@ -213,7 +213,7 @@ success_count = transfer.download_files_by_pathlist(
 
 ```python
 # max_download_num 未指定时，默认检查/传输所有文件
-transfer = MTFileTransfer(file_config, workers=5, verbose=True)
+transfer = MtFileDownloader(file_config, workers=5, verbose=True)
 
 # 检查所有文件
 existing_files, existing_local_paths = transfer.check_files_existence(
@@ -236,7 +236,7 @@ success_count = transfer.download_files_by_pathlist(
 
 ```python
 # 启用详细日志，查看连接状态和错误处理
-transfer = MTFileTransfer(file_config, workers=10, verbose=True)
+transfer = MtFileDownloader(file_config, workers=10, verbose=True)
 
 # 下载文件，自动处理连接错误
 try:
@@ -255,7 +255,7 @@ except Exception as e:
 
 ```python
 # 使用多个传输器实例并行下载文件
-transfer = MTFileTransfer(file_config, workers=8, verbose=True)
+transfer = MtFileDownloader(file_config, workers=8, verbose=True)
 
 # 准备文件列表
 file_list = [f"/remote/file{i}.txt" for i in range(1000)]
@@ -279,7 +279,7 @@ print(f"成功下载: {success_count} 个文件")
 
 ```python
 # 创建单线程传输器实例
-transfer = MTFileTransfer(file_config, workers=1, verbose=True)
+transfer = MtFileDownloader(file_config, workers=1, verbose=True)
 
 # 下载文件（单线程模式）
 success_count = transfer.download_files_by_pathlist(
