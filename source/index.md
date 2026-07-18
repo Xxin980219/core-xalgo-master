@@ -618,7 +618,6 @@ voc_annot.save('image_001.xml')
 print("✅ 标注文件生成完成")
 
 # 文件传输示例（需要配置服务器信息）
-"""
 ftp_config = {
     "my_ftp": {
         "host": "ftp.example.com",
@@ -638,7 +637,7 @@ success_count = downloader.download_files_by_pathlist(
     local_path_list=local_paths
 )
 print(f"✅ 成功下载 {success_count} 个文件")
-"""
+```
 
 
 </div>

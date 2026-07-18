@@ -116,7 +116,7 @@
 轻量级多数据库查询客户端，支持 MySQL、PostgreSQL、SQLite 等多种数据库。
 :::
 
-:::{grid-item-card} {octicon}`download` mt_file_transfer
+:::{grid-item-card} {octicon}`download` Mt_file_transfer
 :link: mt_file_transfer
 :link-type: doc
 :class-card: component-card
