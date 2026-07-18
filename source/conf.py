@@ -26,7 +26,8 @@ author = 'Xiong xin'
 
 # Version information
 try:
-    from version import __version__
+    # from version import __version__
+    from coreXAlgo import __version__
     version = __version__
     release = __version__
 except ImportError:
